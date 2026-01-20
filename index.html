@@ -24,7 +24,6 @@
 </head>
 <body class="h-screen flex flex-col overflow-hidden bg-slate-50">
 
-    <!-- Navbar -->
     <nav class="bg-white shadow-sm border-b p-4 flex justify-between items-center z-10">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600"></i>
@@ -33,10 +32,13 @@
         <div id="connectionStatus" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">Offline</div>
     </nav>
 
-    <!-- MAIN APP CONTAINER -->
+    <div id="errorBanner" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 absolute top-16 left-0 right-0 z-50 text-xs" role="alert">
+        <p class="font-bold">Error</p>
+        <p id="errorText">Something went wrong.</p>
+    </div>
+
     <main class="flex-1 relative overflow-hidden">
         
-        <!-- SCENE 1: SETUP (LOGIN ONLY) -->
         <div id="sceneSetup" class="absolute inset-0 bg-slate-100 z-50 flex items-center justify-center p-4 overflow-y-auto">
             <div class="bg-white max-w-md w-full rounded-xl shadow-xl p-8 space-y-6">
                 <div class="text-center">
@@ -44,7 +46,6 @@
                     <p class="text-gray-500 text-sm">Enter your name and room ID to join.</p>
                 </div>
 
-                <!-- Player Info -->
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
@@ -57,43 +58,44 @@
                     </div>
                 </div>
 
-                <button id="btnJoin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
-                    Start Game <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                <button onclick="window.startApp()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
+                    Login <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
 
-        <!-- SCENE 2: LOBBY (WAITING FOR PLAYERS) -->
         <div id="sceneLobby" class="hidden absolute inset-0 bg-white z-40 flex flex-col items-center justify-center p-4">
-            <div class="max-w-2xl w-full text-center space-y-8">
+            <div class="max-w-2xl w-full text-center space-y-6">
                 <div>
                     <h2 class="text-3xl font-bold text-gray-800 mb-2">Room: <span id="lobbyRoomName" class="text-blue-600"></span></h2>
                     <p class="text-gray-500">Waiting for players...</p>
                 </div>
 
-                <div id="lobbyPlayerList" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <!-- Players injected here -->
+                <div id="lobbyPlayerList" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+
+                <div id="commonStartArea" class="hidden">
+                    <button onclick="window.startGame()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 animate-bounce">
+                        <i data-lucide="play-circle" class="w-6 h-6"></i> GAME START!
+                    </button>
+                    <p class="text-sm text-gray-400 mt-2">Any player can press this button.</p>
                 </div>
 
-                <!-- Host Controls -->
                 <div id="hostControls" class="bg-gray-50 p-6 rounded-xl border border-gray-200 text-left hidden">
                     <h3 class="font-bold mb-4 flex items-center gap-2">
-                        <i data-lucide="crown" class="text-yellow-500 w-5 h-5"></i> Host Settings
+                        <i data-lucide="crown" class="text-yellow-500 w-5 h-5"></i> Teacher Settings (Host)
                     </h3>
                     <p class="text-xs text-gray-500 mb-2">Paste Excel data here (English [TAB] Japanese)</p>
                     <textarea id="gameWordsInput" class="w-full h-32 border rounded p-2 text-sm font-mono mb-4 bg-white" placeholder="English [TAB] Japanese"></textarea>
-                    <button id="btnHostStart" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
-                        <i data-lucide="play" class="w-4 h-4"></i> Start Game
+                    <button onclick="window.saveGameSettings()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
+                        <i data-lucide="save" class="w-4 h-4"></i> Save & Ready
                     </button>
                 </div>
                 
-                <div id="waitingMessage" class="text-gray-400 italic animate-pulse">Waiting for host to start...</div>
+                <div id="waitingMessage" class="text-gray-400 italic">Waiting for host to prepare cards...</div>
             </div>
         </div>
 
-        <!-- SCENE 3: GAME BOARD -->
         <div id="sceneGame" class="hidden h-full flex flex-col md:flex-row">
-            <!-- Sidebar -->
             <div class="w-full md:w-64 bg-white border-r p-4 flex flex-row md:flex-col gap-4 overflow-x-auto shadow-sm z-20">
                 <div class="shrink-0">
                     <div class="text-xs font-bold text-gray-400 uppercase">Turn</div>
@@ -104,21 +106,17 @@
                     <div id="gameScoreBoard" class="grid grid-cols-2 md:grid-cols-1 gap-2"></div>
                 </div>
             </div>
-
-            <!-- Grid -->
             <div class="flex-1 bg-slate-100 p-4 overflow-y-auto">
                 <div id="gameGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 max-w-7xl mx-auto pb-20"></div>
             </div>
         </div>
-
     </main>
 
-    <!-- FIREBASE SDK (Modular) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         
-        // --- YOUR FIREBASE CONFIGURATION ---
+        // --- YOUR CONFIG (Embedded) ---
         const firebaseConfig = {
           apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
           authDomain: "concentration-2cb8a.firebaseapp.com",
@@ -129,11 +127,17 @@
           measurementId: "G-D3GC22P1P5"
         };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        // Initialize
+        let app, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            console.log("Firebase initialized");
+        } catch (e) {
+            showError("Firebase Init Error: " + e.message);
+        }
 
-        // GLOBAL VARIABLES
+        // GLOBALS
         let currentRoomId = "";
         let myPlayerId = "user_" + Math.random().toString(36).substr(2, 9);
         let myName = "";
@@ -141,7 +145,7 @@
         let unsubscribe = null;
         let localState = null;
 
-        // --- DOM ELEMENTS ---
+        // UI References
         const scenes = {
             setup: document.getElementById('sceneSetup'),
             lobby: document.getElementById('sceneLobby'),
@@ -152,89 +156,152 @@ Can you help me?\t私を手伝ってくれますか？
 This is the book I bought yesterday.\tこれは私が昨日買った本です。
 It is important to study English.\t英語を勉強することは大切です。`;
 
-        // --- 1. INITIALIZATION ---
-        // Setup Button Listeners safely
-        document.addEventListener('DOMContentLoaded', () => {
-            const btnJoin = document.getElementById('btnJoin');
-            const btnHostStart = document.getElementById('btnHostStart');
-            
-            if(btnJoin) btnJoin.addEventListener('click', initializeAndJoin);
-            if(btnHostStart) btnHostStart.addEventListener('click', hostStartGame);
-
-            // Auto-load saved name
-            const savedName = localStorage.getItem('nico_concentration_name');
-            const savedRoom = localStorage.getItem('nico_concentration_room');
-            if (savedName) document.getElementById('playerName').value = savedName;
-            if (savedRoom) document.getElementById('roomName').value = savedRoom;
-            document.getElementById('gameWordsInput').value = defaultWords;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        });
-
-        async function initializeAndJoin() {
+        // --- EXPOSE FUNCTIONS TO WINDOW ---
+        window.startApp = async () => {
             myName = document.getElementById('playerName').value.trim();
             currentRoomId = document.getElementById('roomName').value.trim();
 
             if (!myName || !currentRoomId) {
-                alert("Please enter your Name and Room ID.");
+                alert("Please enter Name and Room ID.");
                 return;
             }
 
             try {
-                // Save name for convenience
                 localStorage.setItem('nico_concentration_name', myName);
                 localStorage.setItem('nico_concentration_room', currentRoomId);
-
                 await joinRoomLogic();
             } catch (e) {
                 console.error(e);
-                alert("Error initializing: " + e.message + "\n(Check internet or Firebase Console)");
+                showError("Join Error: " + e.message);
+            }
+        };
+
+        // STEP 1: Host saves the cards to the database
+        window.saveGameSettings = async () => {
+            try {
+                const rawText = document.getElementById('gameWordsInput').value.trim();
+                constlines = rawText.split('\n');
+                let cards = [];
+                let pairId = 0;
+
+                const lines = rawText.split('\n');
+                lines.forEach((line) => {
+                    let parts = line.split('\t');
+                    if (parts.length < 2 && line.includes(',')) {
+                         const commaIndex = line.indexOf(',');
+                         if (commaIndex !== -1) parts = [line.substring(0, commaIndex), line.substring(commaIndex + 1)];
+                    }
+                    if (parts.length >= 2) {
+                        const en = parts[0].trim();
+                        const jp = parts[1].trim();
+                        if (en && jp) {
+                            cards.push({ id: 0, pairId: pairId, text: en, type: 'en', isFlipped: false, isMatched: false });
+                            cards.push({ id: 0, pairId: pairId, text: jp, type: 'jp', isFlipped: false, isMatched: false });
+                            pairId++;
+                        }
+                    }
+                });
+
+                if (cards.length < 4) {
+                    alert("Need at least 2 pairs.");
+                    return;
+                }
+
+                // Shuffle
+                for (let i = cards.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [cards[i], cards[j]] = [cards[j], cards[i]];
+                }
+                cards.forEach((c, i) => c.id = i);
+
+                const roomRef = doc(db, "rooms", currentRoomId);
+                // Just save the cards, don't start game yet
+                await updateDoc(roomRef, {
+                    cards: cards,
+                    setupComplete: true
+                });
+
+            } catch(e) {
+                showError("Save Error: " + e.message);
+            }
+        };
+
+        // STEP 2: Anyone can start the game if setup is complete
+        window.startGame = async () => {
+            try {
+                const roomRef = doc(db, "rooms", currentRoomId);
+                await updateDoc(roomRef, {
+                    status: 'playing',
+                    turnIndex: 0,
+                    flippedIndices: []
+                });
+            } catch(e) {
+                showError("Start Error: " + e.message);
             }
         }
 
-        // --- 2. LOBBY LOGIC ---
+        window.handleCardClick = async (idx) => {
+            if (!localState) return;
+            const data = localState;
+            const currentPlayer = data.players[data.turnIndex];
+            
+            if (currentPlayer.id !== myPlayerId) return; 
+            if (data.flippedIndices.length >= 2) return; 
+            if (data.cards[idx].isFlipped || data.cards[idx].isMatched) return; 
+
+            try {
+                const roomRef = doc(db, "rooms", currentRoomId);
+                const newCards = [...data.cards];
+                newCards[idx].isFlipped = true;
+                const newFlipped = [...data.flippedIndices, idx];
+
+                await updateDoc(roomRef, { cards: newCards, flippedIndices: newFlipped });
+
+                if (newFlipped.length === 2) {
+                    setTimeout(async () => {
+                        await processMatch(roomRef, newCards, newFlipped, data);
+                    }, 1500); 
+                }
+            } catch(e) {
+                console.error(e); 
+            }
+        };
+
+        // --- INTERNAL LOGIC ---
         async function joinRoomLogic() {
             const roomRef = doc(db, "rooms", currentRoomId);
             const snap = await getDoc(roomRef);
-
             const playerData = { id: myPlayerId, name: myName, score: 0 };
 
             if (!snap.exists()) {
-                // Create Room (Host)
                 isHost = true;
                 await setDoc(roomRef, {
                     status: 'lobby',
                     players: [playerData],
                     hostId: myPlayerId,
                     cards: [],
+                    setupComplete: false,
                     turnIndex: 0,
                     flippedIndices: [],
                     lastUpdated: Date.now()
                 });
             } else {
-                // Join Room
                 const data = snap.data();
                 if (data.status === 'playing') {
-                    // Allow re-join if same name
                     const existing = data.players.find(p => p.name === myName);
-                    if (!existing) {
-                        alert("Game already in progress!");
-                        return;
-                    }
+                    if (!existing) { alert("Game in progress!"); return; }
                     myPlayerId = existing.id;
                 } else {
-                    // Check duplicate
                     const existing = data.players.find(p => p.name === myName);
                     if (!existing) {
-                        await updateDoc(roomRef, {
-                            players: arrayUnion(playerData)
-                        });
+                        await updateDoc(roomRef, { players: arrayUnion(playerData) });
                     } else {
                         myPlayerId = existing.id; 
                     }
+                    if (data.hostId === myPlayerId) isHost = true;
                 }
             }
 
-            // Subscribe to updates
             switchScene('lobby');
             document.getElementById('lobbyRoomName').textContent = currentRoomId;
             
@@ -243,174 +310,13 @@ It is important to study English.\t英語を勉強することは大切です。
                 const data = docSnap.data();
                 localState = data;
                 renderLobby(data);
-                
                 if (data.status === 'playing') {
                     switchScene('game');
                     renderGame(data);
                 }
+            }, (error) => {
+                showError("Sync Error: " + error.message);
             });
-        }
-
-        function renderLobby(data) {
-            const list = document.getElementById('lobbyPlayerList');
-            list.innerHTML = '';
-            data.players.forEach(p => {
-                const div = document.createElement('div');
-                div.className = "bg-gray-100 p-4 rounded-lg flex flex-col items-center justify-center animate-fade-in";
-                div.innerHTML = `
-                    <div class="bg-white p-3 rounded-full mb-2 shadow-sm">
-                        <i data-lucide="user" class="w-6 h-6 text-blue-500"></i>
-                    </div>
-                    <span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>
-                    ${p.id === data.hostId ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}
-                `;
-                list.appendChild(div);
-            });
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-
-            // Host controls visibility
-            if (myPlayerId === data.hostId) {
-                document.getElementById('hostControls').classList.remove('hidden');
-                document.getElementById('waitingMessage').classList.add('hidden');
-            } else {
-                document.getElementById('hostControls').classList.add('hidden');
-                document.getElementById('waitingMessage').classList.remove('hidden');
-            }
-        }
-
-        // --- 3. GAME START LOGIC ---
-        async function hostStartGame() {
-            const rawText = document.getElementById('gameWordsInput').value.trim();
-            const lines = rawText.split('\n');
-            let cards = [];
-            let pairId = 0;
-
-            lines.forEach((line) => {
-                let parts = line.split('\t');
-                if (parts.length < 2 && line.includes(',')) {
-                     const commaIndex = line.indexOf(',');
-                     if (commaIndex !== -1) parts = [line.substring(0, commaIndex), line.substring(commaIndex + 1)];
-                }
-                if (parts.length >= 2) {
-                    const en = parts[0].trim();
-                    const jp = parts[1].trim();
-                    if (en && jp) {
-                        cards.push({ id: 0, pairId: pairId, text: en, type: 'en', isFlipped: false, isMatched: false });
-                        cards.push({ id: 0, pairId: pairId, text: jp, type: 'jp', isFlipped: false, isMatched: false });
-                        pairId++;
-                    }
-                }
-            });
-
-            if (cards.length < 4) {
-                alert("Please add at least 2 pairs of words.");
-                return;
-            }
-
-            // Shuffle
-            for (let i = cards.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [cards[i], cards[j]] = [cards[j], cards[i]];
-            }
-            // Assign Index IDs
-            cards.forEach((c, i) => c.id = i);
-
-            // Update DB to Start
-            const roomRef = doc(db, "rooms", currentRoomId);
-            await updateDoc(roomRef, {
-                status: 'playing',
-                cards: cards,
-                turnIndex: 0,
-                flippedIndices: []
-            });
-        }
-
-        // --- 4. GAMEPLAY LOGIC ---
-        function renderGame(data) {
-            // Update Turn Indicator
-            const currentPlayer = data.players[data.turnIndex];
-            const indicator = document.getElementById('gameTurnIndicator');
-            indicator.textContent = currentPlayer.name;
-            
-            const isMyTurn = currentPlayer.id === myPlayerId;
-            if (isMyTurn) {
-                indicator.classList.add('bg-green-100', 'text-green-700', 'my-turn-alert');
-                indicator.textContent += " (YOU!)";
-            } else {
-                indicator.classList.remove('bg-green-100', 'text-green-700', 'my-turn-alert');
-            }
-
-            // Update Scores
-            const sb = document.getElementById('gameScoreBoard');
-            sb.innerHTML = '';
-            data.players.forEach((p, idx) => {
-                const div = document.createElement('div');
-                div.className = `p-3 rounded-lg border flex justify-between items-center ${idx === data.turnIndex ? 'active-player' : 'bg-white'}`;
-                div.innerHTML = `
-                    <span class="text-sm font-bold truncate">${p.name}</span>
-                    <span class="text-xl font-bold">${p.score || 0}</span>
-                `;
-                sb.appendChild(div);
-            });
-
-            // Update Grid
-            const grid = document.getElementById('gameGrid');
-            grid.innerHTML = '';
-            
-            data.cards.forEach((card, idx) => {
-                const container = document.createElement('div');
-                container.className = `card-container ${card.isFlipped ? 'flipped' : ''} ${card.isMatched ? 'matched-visible' : ''}`;
-                container.onclick = () => handleCardClick(idx);
-
-                const inner = document.createElement('div');
-                inner.className = 'card-inner bg-white';
-                
-                // Front (Number)
-                const front = document.createElement('div');
-                front.className = 'card-front';
-                front.innerHTML = `<span class="font-bold opacity-80">${idx + 1}</span>`;
-
-                // Back (Text)
-                const back = document.createElement('div');
-                back.className = 'card-back';
-                back.innerHTML = `<span class="card-text text-center">${card.text}</span>`;
-
-                inner.appendChild(front);
-                inner.appendChild(back);
-                container.appendChild(inner);
-                grid.appendChild(container);
-            });
-        }
-
-        async function handleCardClick(idx) {
-            if (!localState) return;
-            const data = localState;
-
-            // Rules Checks
-            const currentPlayer = data.players[data.turnIndex];
-            if (currentPlayer.id !== myPlayerId) return; // Not my turn
-            if (data.flippedIndices.length >= 2) return; // Wait for processing
-            if (data.cards[idx].isFlipped || data.cards[idx].isMatched) return; // Already flipped/matched
-
-            // 1. Flip the card immediately in DB
-            const roomRef = doc(db, "rooms", currentRoomId);
-            
-            const newCards = [...data.cards];
-            newCards[idx].isFlipped = true;
-            const newFlipped = [...data.flippedIndices, idx];
-
-            await updateDoc(roomRef, {
-                cards: newCards,
-                flippedIndices: newFlipped
-            });
-
-            // 2. Check Logic if 2 cards
-            if (newFlipped.length === 2) {
-                // Wait briefly then process
-                setTimeout(async () => {
-                    await processMatch(roomRef, newCards, newFlipped, data);
-                }, 1500); 
-            }
         }
 
         async function processMatch(roomRef, currentCards, flippedIndices, data) {
@@ -418,45 +324,106 @@ It is important to study English.\t英語を勉強することは大切です。
             const idx2 = flippedIndices[1];
             const card1 = currentCards[idx1];
             const card2 = currentCards[idx2];
-            
             let updates = {};
 
             if (card1.pairId === card2.pairId) {
-                // MATCH!
                 currentCards[idx1].isMatched = true;
                 currentCards[idx2].isMatched = true;
-                
-                // Update Score
                 const newPlayers = [...data.players];
                 newPlayers[data.turnIndex].score = (newPlayers[data.turnIndex].score || 0) + 1;
-                
-                updates = {
-                    cards: currentCards,
-                    players: newPlayers,
-                    flippedIndices: [] 
-                };
+                updates = { cards: currentCards, players: newPlayers, flippedIndices: [] };
             } else {
-                // NO MATCH
                 currentCards[idx1].isFlipped = false;
                 currentCards[idx2].isFlipped = false;
-                
                 const nextTurn = (data.turnIndex + 1) % data.players.length;
-                
-                updates = {
-                    cards: currentCards,
-                    turnIndex: nextTurn,
-                    flippedIndices: []
-                };
+                updates = { cards: currentCards, turnIndex: nextTurn, flippedIndices: [] };
             }
-
             await updateDoc(roomRef, updates);
         }
 
-        // --- UTILS ---
+        function renderLobby(data) {
+            const list = document.getElementById('lobbyPlayerList');
+            list.innerHTML = '';
+            data.players.forEach(p => {
+                const div = document.createElement('div');
+                div.className = "bg-gray-100 p-4 rounded-lg flex flex-col items-center justify-center";
+                div.innerHTML = `<div class="bg-white p-3 rounded-full mb-2 shadow-sm"><i data-lucide="user" class="w-6 h-6 text-blue-500"></i></div><span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>${p.id === data.hostId ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}`;
+                list.appendChild(div);
+            });
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            // LOGIC FOR BUTTONS
+            const setupComplete = data.setupComplete === true;
+            const hostControls = document.getElementById('hostControls');
+            const commonStart = document.getElementById('commonStartArea');
+            const waitMsg = document.getElementById('waitingMessage');
+
+            if (setupComplete) {
+                // If words are ready, ANYONE can start
+                hostControls.classList.add('hidden');
+                commonStart.classList.remove('hidden');
+                waitMsg.classList.add('hidden');
+            } else {
+                // If not ready
+                commonStart.classList.add('hidden');
+                if (myPlayerId === data.hostId) {
+                    // Host sees input
+                    hostControls.classList.remove('hidden');
+                    waitMsg.classList.add('hidden');
+                } else {
+                    // Guest waits
+                    hostControls.classList.add('hidden');
+                    waitMsg.classList.remove('hidden');
+                }
+            }
+        }
+
+        function renderGame(data) {
+            const currentPlayer = data.players[data.turnIndex];
+            const indicator = document.getElementById('gameTurnIndicator');
+            indicator.textContent = currentPlayer.name;
+            const isMyTurn = currentPlayer.id === myPlayerId;
+            
+            if (isMyTurn) {
+                indicator.classList.add('bg-green-100', 'text-green-700', 'my-turn-alert');
+                indicator.textContent += " (YOU!)";
+            } else {
+                indicator.classList.remove('bg-green-100', 'text-green-700', 'my-turn-alert');
+            }
+
+            const sb = document.getElementById('gameScoreBoard');
+            sb.innerHTML = '';
+            data.players.forEach((p, idx) => {
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-lg border flex justify-between items-center ${idx === data.turnIndex ? 'active-player' : 'bg-white'}`;
+                div.innerHTML = `<span class="text-sm font-bold truncate">${p.name}</span><span class="text-xl font-bold">${p.score || 0}</span>`;
+                sb.appendChild(div);
+            });
+
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+            data.cards.forEach((card, idx) => {
+                const container = document.createElement('div');
+                container.className = `card-container ${card.isFlipped ? 'flipped' : ''} ${card.isMatched ? 'matched-visible' : ''}`;
+                container.onclick = () => window.handleCardClick(idx); 
+                const inner = document.createElement('div');
+                inner.className = 'card-inner bg-white';
+                const front = document.createElement('div');
+                front.className = 'card-front';
+                front.innerHTML = `<span class="font-bold opacity-80">${idx + 1}</span>`;
+                const back = document.createElement('div');
+                back.className = 'card-back';
+                back.innerHTML = `<span class="card-text text-center">${card.text}</span>`;
+                inner.appendChild(front);
+                inner.appendChild(back);
+                container.appendChild(inner);
+                grid.appendChild(container);
+            });
+        }
+
         function switchScene(sceneName) {
             Object.values(scenes).forEach(el => el.classList.add('hidden'));
             scenes[sceneName].classList.remove('hidden');
-            
             const statusDiv = document.getElementById('connectionStatus');
             if(sceneName === 'setup') {
                 statusDiv.textContent = 'Offline';
@@ -465,6 +432,23 @@ It is important to study English.\t英語を勉強することは大切です。
                 statusDiv.textContent = 'Online';
                 statusDiv.className = 'text-xs px-2 py-1 rounded bg-green-100 text-green-600 font-bold animate-pulse';
             }
+        }
+
+        function showError(msg) {
+            const banner = document.getElementById('errorBanner');
+            const text = document.getElementById('errorText');
+            text.textContent = msg;
+            banner.classList.remove('hidden');
+            setTimeout(() => banner.classList.add('hidden'), 5000);
+        }
+
+        window.onload = () => {
+            const savedName = localStorage.getItem('nico_concentration_name');
+            const savedRoom = localStorage.getItem('nico_concentration_room');
+            if (savedName) document.getElementById('playerName').value = savedName;
+            if (savedRoom) document.getElementById('roomName').value = savedRoom;
+            document.getElementById('gameWordsInput').value = defaultWords;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
         }
     </script>
 </body>
