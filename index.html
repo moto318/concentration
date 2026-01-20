@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Concentration Online v2</title>
+    <title>English Concentration Online v3</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -27,12 +27,17 @@
     <nav class="bg-white shadow-sm border-b p-4 flex justify-between items-center z-10">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600"></i>
-            <h1 class="font-bold text-gray-800">English Online (v2)</h1>
+            <h1 class="font-bold text-gray-800">English Online (v3)</h1>
         </div>
         <div class="flex gap-2 items-center">
-            <button id="navResetBtn" onclick="window.forceResetRoom()" class="hidden bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded shadow flex items-center gap-1 animate-pulse">
-                <i data-lucide="trash-2" class="w-4 h-4"></i> FORCE RESET
-            </button>
+            <div id="hostNavControls" class="hidden flex gap-2">
+                <button onclick="window.switchScene('admin')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded flex items-center gap-1">
+                    <i data-lucide="settings" class="w-4 h-4"></i> Settings
+                </button>
+                <button onclick="window.forceResetRoom()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded shadow flex items-center gap-1">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> RESET
+                </button>
+            </div>
             <div id="connectionStatus" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">Offline</div>
         </div>
     </nav>
@@ -66,7 +71,7 @@
                             <input type="checkbox" id="isTeacherMode" class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300">
                             <div>
                                 <span class="text-sm font-bold text-gray-800">I am the Teacher (Host)</span>
-                                <p class="text-xs text-gray-500">Enable settings & reset controls</p>
+                                <p class="text-xs text-gray-500">Access Management Dashboard</p>
                             </div>
                         </label>
                     </div>
@@ -75,6 +80,53 @@
                 <button onclick="window.startApp()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
                     Enter Room <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 </button>
+            </div>
+        </div>
+
+        <div id="sceneAdmin" class="hidden absolute inset-0 bg-slate-50 z-40 flex flex-col p-4 overflow-y-auto">
+            <div class="max-w-4xl w-full mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <i data-lucide="settings-2" class="text-gray-600"></i> Teacher Dashboard <span class="text-sm font-normal text-gray-400">(Room: <span id="adminRoomName"></span>)</span>
+                    </h2>
+                    
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="space-y-4">
+                            <h3 class="font-bold text-gray-700 border-b pb-2">1. Card Settings</h3>
+                            <p class="text-xs text-gray-500">Paste Excel data (English [TAB] Japanese)</p>
+                            <textarea id="gameWordsInput" class="w-full h-40 border rounded p-2 text-sm font-mono bg-gray-50 focus:bg-white transition" placeholder="English [TAB] Japanese"></textarea>
+                            
+                            <div class="flex items-center gap-2">
+                                <input type="checkbox" id="hostParticipates" class="w-4 h-4 text-blue-600 rounded">
+                                <label for="hostParticipates" class="text-sm text-gray-700">Participate in game (as player)</label>
+                            </div>
+
+                            <button onclick="window.saveGameSettings()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
+                                <i data-lucide="save" class="w-4 h-4"></i> Update Cards & Ready
+                            </button>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center border-b pb-2">
+                                <h3 class="font-bold text-gray-700">2. Student List</h3>
+                                <button onclick="window.forceResetRoom()" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded border border-red-200 flex items-center gap-1">
+                                    <i data-lucide="trash-2" class="w-3 h-3"></i> Kick All
+                                </button>
+                            </div>
+                            <div id="adminPlayerList" class="bg-gray-100 rounded-lg p-2 h-48 overflow-y-auto space-y-2">
+                                <p class="text-gray-400 text-xs text-center py-4">Waiting for students...</p>
+                            </div>
+                            
+                            <div class="pt-4 border-t">
+                                <h3 class="font-bold text-gray-700 mb-2">3. Monitor Game</h3>
+                                <button onclick="window.goToGameView()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
+                                    <i data-lucide="monitor" class="w-4 h-4"></i> Go to Game Room
+                                </button>
+                                <p class="text-xs text-gray-400 mt-2 text-center">You can watch or play from the Game Room.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -91,30 +143,10 @@
                     <button onclick="window.startGame()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 animate-bounce">
                         <i data-lucide="play-circle" class="w-6 h-6"></i> GAME START!
                     </button>
-                    <p class="text-sm text-gray-400 mt-2">Any player can press this button.</p>
-                </div>
-
-                <div id="hostControls" class="bg-gray-50 p-6 rounded-xl border border-gray-200 text-left hidden shadow-inner">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold flex items-center gap-2">
-                            <i data-lucide="crown" class="text-yellow-500 w-5 h-5"></i> Teacher Settings
-                        </h3>
-                    </div>
-                    
-                    <p class="text-xs text-gray-500 mb-2">Paste Excel data (English [TAB] Japanese)</p>
-                    <textarea id="gameWordsInput" class="w-full h-24 border rounded p-2 text-sm font-mono mb-2 bg-white" placeholder="English [TAB] Japanese"></textarea>
-                    
-                    <div class="flex items-center gap-2 mb-4">
-                        <input type="checkbox" id="hostParticipates" class="w-4 h-4 text-blue-600 rounded">
-                        <label for="hostParticipates" class="text-sm text-gray-700 font-medium">I will also play (Participate in game)</label>
-                    </div>
-
-                    <button onclick="window.saveGameSettings()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
-                        <i data-lucide="save" class="w-4 h-4"></i> Save & Ready
-                    </button>
+                    <p class="text-sm text-gray-400 mt-2">Waiting for teacher to start...</p>
                 </div>
                 
-                <div id="waitingMessage" class="text-gray-400 italic">Waiting for teacher to prepare...</div>
+                <div id="waitingMessage" class="text-gray-400 italic">Waiting for teacher to prepare cards...</div>
             </div>
         </div>
 
@@ -137,7 +169,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         
         const firebaseConfig = {
           apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
@@ -163,7 +195,6 @@
         let myName = "";
         let myPlayerId = "";
         let isHostMode = false; 
-        let unsubscribe = null;
         let localState = null;
 
         // Persist User ID
@@ -177,6 +208,7 @@
 
         const scenes = {
             setup: document.getElementById('sceneSetup'),
+            admin: document.getElementById('sceneAdmin'),
             lobby: document.getElementById('sceneLobby'),
             game: document.getElementById('sceneGame')
         };
@@ -185,7 +217,7 @@ Can you help me?\t私を手伝ってくれますか？
 This is the book I bought yesterday.\tこれは私が昨日買った本です。
 It is important to study English.\t英語を勉強することは大切です。`;
 
-        // --- EXPOSE FUNCTIONS ---
+        // --- FUNCTIONS ---
         window.startApp = async () => {
             myName = document.getElementById('playerName').value.trim();
             currentRoomId = document.getElementById('roomName').value.trim();
@@ -203,16 +235,12 @@ It is important to study English.\t英語を勉強することは大切です。
             }
         };
 
-        // ★★★ FORCE RESET (Kicks Everyone) ★★★
+        // KICK ALL
         window.forceResetRoom = async () => {
-            if (!confirm("⚠️ RESET ROOM (FORCE)?\n\nThis will KICK ALL players (ghosts included) and restart the room.")) return;
+            if (!confirm("⚠️ RESET ROOM (FORCE)?\n\nThis will KICK ALL players and reset everything.")) return;
             try {
                 const roomRef = doc(db, "rooms", currentRoomId);
-                
-                // Create a clean slate player list with just ME
-                const me = { id: myPlayerId, name: myName, score: 0, isSpectator: true }; // Teacher defaults to spectator
-
-                // setDoc overwrites EVERYTHING. Previous data is gone.
+                const me = { id: myPlayerId, name: myName, score: 0, isSpectator: true };
                 await setDoc(roomRef, {
                     status: 'lobby',
                     players: [me], 
@@ -223,7 +251,8 @@ It is important to study English.\t英語を勉強することは大切です。
                     flippedIndices: [],
                     lastUpdated: Date.now()
                 });
-                alert("Room has been completely reset!");
+                alert("Room Reset!");
+                if(isHostMode) window.switchScene('admin'); // Stay in admin
             } catch(e) {
                 showError("Reset Error: " + e.message);
             }
@@ -235,7 +264,6 @@ It is important to study English.\t英語を勉強することは大切です。
                 const lines = rawText.split('\n');
                 let cards = [];
                 let pairId = 0;
-
                 lines.forEach((line) => {
                     let parts = line.split('\t');
                     if (parts.length < 2 && line.includes(',')) {
@@ -252,9 +280,7 @@ It is important to study English.\t英語を勉強することは大切です。
                         }
                     }
                 });
-
                 if (cards.length < 4) { alert("Need at least 2 pairs."); return; }
-
                 for (let i = cards.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [cards[i], cards[j]] = [cards[j], cards[i]];
@@ -266,11 +292,8 @@ It is important to study English.\t英語を勉強することは大切です。
                 
                 const snap = await getDoc(roomRef);
                 const currentPlayers = snap.exists() ? snap.data().players : [];
-                
                 const updatedPlayers = currentPlayers.map(p => {
-                    if (p.id === myPlayerId) {
-                        return { ...p, isSpectator: !hostParticipates };
-                    }
+                    if (p.id === myPlayerId) return { ...p, isSpectator: !hostParticipates };
                     return p;
                 });
 
@@ -279,10 +302,15 @@ It is important to study English.\t英語を勉強することは大切です。
                     setupComplete: true,
                     players: updatedPlayers
                 });
+                alert("Cards Updated! Students can now start.");
 
             } catch(e) {
                 showError("Save Error: " + e.message);
             }
+        };
+
+        window.goToGameView = () => {
+            window.switchScene('game'); // Just switch view, logic handles rendering
         };
 
         window.startGame = async () => {
@@ -293,7 +321,6 @@ It is important to study English.\t英語を勉強することは大切です。
                 while(firstTurn < players.length && players[firstTurn].isSpectator) {
                     firstTurn++;
                 }
-
                 await updateDoc(roomRef, {
                     status: 'playing',
                     turnIndex: firstTurn,
@@ -308,40 +335,29 @@ It is important to study English.\t英語を勉強することは大切です。
             if (!localState) return;
             const data = localState;
             const currentPlayer = data.players[data.turnIndex];
-            
             if (currentPlayer.id !== myPlayerId) return; 
             if (data.flippedIndices.length >= 2) return; 
             if (data.cards[idx].isFlipped || data.cards[idx].isMatched) return; 
-
             try {
                 const roomRef = doc(db, "rooms", currentRoomId);
                 const newCards = [...data.cards];
                 newCards[idx].isFlipped = true;
                 const newFlipped = [...data.flippedIndices, idx];
-
                 await updateDoc(roomRef, { cards: newCards, flippedIndices: newFlipped });
-
                 if (newFlipped.length === 2) {
                     setTimeout(async () => {
                         await processMatch(roomRef, newCards, newFlipped, data);
                     }, 1500); 
                 }
-            } catch(e) {
-                console.error(e); 
-            }
+            } catch(e) { console.error(e); }
         };
 
-        // --- INTERNAL LOGIC ---
+        // --- LOGIC ---
         async function joinRoomLogic() {
             const roomRef = doc(db, "rooms", currentRoomId);
             const snap = await getDoc(roomRef);
             
-            const playerData = { 
-                id: myPlayerId, 
-                name: myName, 
-                score: 0, 
-                isSpectator: isHostMode 
-            };
+            const playerData = { id: myPlayerId, name: myName, score: 0, isSpectator: isHostMode };
 
             if (!snap.exists()) {
                 await setDoc(roomRef, {
@@ -359,10 +375,7 @@ It is important to study English.\t英語を勉強することは大切です。
                 const existing = data.players.find(p => p.id === myPlayerId); 
                 let updatePayload = {};
 
-                // ★ FORCE HOST TAKEOVER: If I say I am host, I AM HOST now.
-                if (isHostMode && data.hostId !== myPlayerId) {
-                    updatePayload.hostId = myPlayerId;
-                }
+                if (isHostMode && data.hostId !== myPlayerId) updatePayload.hostId = myPlayerId;
 
                 if (existing) {
                     if (existing.name !== myName) {
@@ -372,52 +385,47 @@ It is important to study English.\t英語を勉強することは大切です。
                 } else {
                     updatePayload.players = arrayUnion(playerData);
                 }
-
-                if (Object.keys(updatePayload).length > 0) {
-                    await updateDoc(roomRef, updatePayload);
-                }
+                if (Object.keys(updatePayload).length > 0) await updateDoc(roomRef, updatePayload);
             }
 
-            switchScene('lobby');
-            document.getElementById('lobbyRoomName').textContent = currentRoomId;
+            // ★ SCENE DECISION ★
+            if (isHostMode) {
+                switchScene('admin');
+                document.getElementById('adminRoomName').textContent = currentRoomId;
+            } else {
+                switchScene('lobby');
+                document.getElementById('lobbyRoomName').textContent = currentRoomId;
+            }
 
-            unsubscribe = onSnapshot(roomRef, (docSnap) => {
-                // If room was deleted/reset completely
+            // Update Nav Visibility
+            const hostNav = document.getElementById('hostNavControls');
+            if (isHostMode) hostNav.classList.remove('hidden');
+            else hostNav.classList.add('hidden');
+
+            onSnapshot(roomRef, (docSnap) => {
                 if (!docSnap.exists()) { alert("Room reset."); location.reload(); return; }
                 const data = docSnap.data();
                 
-                // Am I still in the player list?
                 const me = data.players.find(p => p.id === myPlayerId);
-                
-                // If I am NOT in list, but I am Host, I should just re-add myself or alert.
-                // If I am student and kicked, reload.
-                if (!me) { 
-                    alert("Room was reset by teacher."); 
-                    location.reload(); 
-                    return; 
-                }
+                if (!me) { alert("Disconnected."); location.reload(); return; }
 
                 localState = data;
-                renderLobby(data);
 
-                // ★ RESET BUTTON VISIBILITY: Based on Local "isTeacherMode" checkbox
-                // This ensures the button is ALWAYS there for you if you entered as teacher
-                const resetBtn = document.getElementById('navResetBtn');
-                if (isHostMode) {
-                    resetBtn.classList.remove('hidden');
-                } else {
-                    resetBtn.classList.add('hidden');
+                // If I am Admin, update the Admin UI list
+                if (isHostMode && !scenes.game.classList.contains('hidden') === false) {
+                     renderAdminList(data);
                 }
+                
+                // If I am currently in Game or Lobby view, update those
+                if (!scenes.game.classList.contains('hidden')) renderGame(data);
+                if (!scenes.lobby.classList.contains('hidden')) renderLobby(data);
 
-                if (data.status === 'playing') {
-                    switchScene('game');
-                    renderGame(data);
-                } else {
-                    switchScene('lobby');
+                // Auto-switch for students
+                if (!isHostMode) {
+                    if (data.status === 'playing') switchScene('game');
+                    else switchScene('lobby');
                 }
-            }, (error) => {
-                showError("Sync Error: " + error.message);
-            });
+            }, (error) => { showError("Sync Error: " + error.message); });
         }
 
         async function processMatch(roomRef, currentCards, flippedIndices, data) {
@@ -426,7 +434,6 @@ It is important to study English.\t英語を勉強することは大切です。
             const card1 = currentCards[idx1];
             const card2 = currentCards[idx2];
             let updates = {};
-
             if (card1.pairId === card2.pairId) {
                 currentCards[idx1].isMatched = true;
                 currentCards[idx2].isMatched = true;
@@ -436,23 +443,40 @@ It is important to study English.\t英語を勉強することは大切です。
             } else {
                 currentCards[idx1].isFlipped = false;
                 currentCards[idx2].isFlipped = false;
-                
                 let nextTurn = (data.turnIndex + 1) % data.players.length;
                 let loopCount = 0;
                 while(data.players[nextTurn].isSpectator && loopCount < data.players.length) {
                     nextTurn = (nextTurn + 1) % data.players.length;
                     loopCount++;
                 }
-
                 updates = { cards: currentCards, turnIndex: nextTurn, flippedIndices: [] };
             }
             await updateDoc(roomRef, updates);
         }
 
+        function renderAdminList(data) {
+            const list = document.getElementById('adminPlayerList');
+            list.innerHTML = '';
+            if(!data.players.length) list.innerHTML = '<p class="text-gray-400 text-xs text-center py-4">No players.</p>';
+            
+            data.players.forEach(p => {
+                if (p.id === myPlayerId) return; // Hide self? Or show self differently.
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center bg-white p-2 rounded shadow-sm";
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                         <i data-lucide="${p.isSpectator ? 'eye' : 'user'}" class="w-4 h-4 text-gray-500"></i>
+                         <span class="text-sm font-bold">${p.name}</span>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
         function renderLobby(data) {
             const list = document.getElementById('lobbyPlayerList');
             list.innerHTML = '';
-            
             data.players.forEach(p => {
                 const isHostUser = p.id === data.hostId;
                 const isSpectator = p.isSpectator;
@@ -471,31 +495,21 @@ It is important to study English.\t英語を勉強することは大切です。
             if (typeof lucide !== 'undefined') lucide.createIcons();
 
             const setupComplete = data.setupComplete === true;
-            const hostControls = document.getElementById('hostControls');
             const commonStart = document.getElementById('commonStartArea');
             const waitMsg = document.getElementById('waitingMessage');
 
-            if (isHostMode) {
-                hostControls.classList.remove('hidden');
+            if (setupComplete) {
+                commonStart.classList.remove('hidden');
                 waitMsg.classList.add('hidden');
-                if (setupComplete) commonStart.classList.remove('hidden');
-                else commonStart.classList.add('hidden');
             } else {
-                hostControls.classList.add('hidden');
-                if (setupComplete) {
-                    commonStart.classList.remove('hidden');
-                    waitMsg.classList.add('hidden');
-                } else {
-                    commonStart.classList.add('hidden');
-                    waitMsg.classList.remove('hidden');
-                }
+                commonStart.classList.add('hidden');
+                waitMsg.classList.remove('hidden');
             }
         }
 
         function renderGame(data) {
             const currentPlayer = data.players[data.turnIndex];
             const indicator = document.getElementById('gameTurnIndicator');
-            
             if(currentPlayer) {
                 indicator.textContent = currentPlayer.name;
                 const isMyTurn = currentPlayer.id === myPlayerId;
@@ -506,7 +520,6 @@ It is important to study English.\t英語を勉強することは大切です。
                     indicator.classList.remove('bg-green-100', 'text-green-700', 'my-turn-alert');
                 }
             }
-
             const sb = document.getElementById('gameScoreBoard');
             sb.innerHTML = '';
             data.players.forEach((p, idx) => {
@@ -516,7 +529,6 @@ It is important to study English.\t英語を勉強することは大切です。
                 div.innerHTML = `<span class="text-sm font-bold truncate">${p.name}</span><span class="text-xl font-bold">${p.score || 0}</span>`;
                 sb.appendChild(div);
             });
-
             const grid = document.getElementById('gameGrid');
             grid.innerHTML = '';
             data.cards.forEach((card, idx) => {
@@ -538,7 +550,7 @@ It is important to study English.\t英語を勉強することは大切です。
             });
         }
 
-        function switchScene(sceneName) {
+        window.switchScene = (sceneName) => {
             Object.values(scenes).forEach(el => el.classList.add('hidden'));
             scenes[sceneName].classList.remove('hidden');
             const statusDiv = document.getElementById('connectionStatus');
@@ -549,6 +561,8 @@ It is important to study English.\t英語を勉強することは大切です。
                 statusDiv.textContent = 'Online';
                 statusDiv.className = 'text-xs px-2 py-1 rounded bg-green-100 text-green-600 font-bold animate-pulse';
             }
+            // Admin Logic
+            if (sceneName === 'admin' && localState) renderAdminList(localState);
         }
 
         function showError(msg) {
