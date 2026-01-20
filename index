@@ -57,7 +57,7 @@
                     </div>
                 </div>
 
-                <button onclick="initializeAndJoin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
+                <button id="btnJoin" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
                     Start Game <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 </button>
             </div>
@@ -82,7 +82,7 @@
                     </h3>
                     <p class="text-xs text-gray-500 mb-2">Paste Excel data here (English [TAB] Japanese)</p>
                     <textarea id="gameWordsInput" class="w-full h-32 border rounded p-2 text-sm font-mono mb-4 bg-white" placeholder="English [TAB] Japanese"></textarea>
-                    <button onclick="hostStartGame()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
+                    <button id="btnHostStart" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
                         <i data-lucide="play" class="w-4 h-4"></i> Start Game
                     </button>
                 </div>
@@ -118,7 +118,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         
-        // --- YOUR FIREBASE CONFIGURATION (Embedded) ---
+        // --- YOUR FIREBASE CONFIGURATION ---
         const firebaseConfig = {
           apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
           authDomain: "concentration-2cb8a.firebaseapp.com",
@@ -129,8 +129,11 @@
           measurementId: "G-D3GC22P1P5"
         };
 
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
         // GLOBAL VARIABLES
-        let db;
         let currentRoomId = "";
         let myPlayerId = "user_" + Math.random().toString(36).substr(2, 9);
         let myName = "";
@@ -150,7 +153,24 @@ This is the book I bought yesterday.\tこれは私が昨日買った本です。
 It is important to study English.\t英語を勉強することは大切です。`;
 
         // --- 1. INITIALIZATION ---
-        window.initializeAndJoin = async () => {
+        // Setup Button Listeners safely
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnJoin = document.getElementById('btnJoin');
+            const btnHostStart = document.getElementById('btnHostStart');
+            
+            if(btnJoin) btnJoin.addEventListener('click', initializeAndJoin);
+            if(btnHostStart) btnHostStart.addEventListener('click', hostStartGame);
+
+            // Auto-load saved name
+            const savedName = localStorage.getItem('nico_concentration_name');
+            const savedRoom = localStorage.getItem('nico_concentration_room');
+            if (savedName) document.getElementById('playerName').value = savedName;
+            if (savedRoom) document.getElementById('roomName').value = savedRoom;
+            document.getElementById('gameWordsInput').value = defaultWords;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        });
+
+        async function initializeAndJoin() {
             myName = document.getElementById('playerName').value.trim();
             currentRoomId = document.getElementById('roomName').value.trim();
 
@@ -160,10 +180,6 @@ It is important to study English.\t英語を勉強することは大切です。
             }
 
             try {
-                // Initialize Firebase with embedded config
-                const app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
-
                 // Save name for convenience
                 localStorage.setItem('nico_concentration_name', myName);
                 localStorage.setItem('nico_concentration_room', currentRoomId);
@@ -171,19 +187,9 @@ It is important to study English.\t英語を勉強することは大切です。
                 await joinRoomLogic();
             } catch (e) {
                 console.error(e);
-                alert("Error initializing: " + e.message);
+                alert("Error initializing: " + e.message + "\n(Check internet or Firebase Console)");
             }
-        };
-
-        // Auto-load saved name
-        window.onload = () => {
-            const savedName = localStorage.getItem('nico_concentration_name');
-            const savedRoom = localStorage.getItem('nico_concentration_room');
-            if (savedName) document.getElementById('playerName').value = savedName;
-            if (savedRoom) document.getElementById('roomName').value = savedRoom;
-            document.getElementById('gameWordsInput').value = defaultWords;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        };
+        }
 
         // --- 2. LOBBY LOGIC ---
         async function joinRoomLogic() {
@@ -208,7 +214,7 @@ It is important to study English.\t英語を勉強することは大切です。
                 // Join Room
                 const data = snap.data();
                 if (data.status === 'playing') {
-                    // Allow re-join if same name (simple recovery)
+                    // Allow re-join if same name
                     const existing = data.players.find(p => p.name === myName);
                     if (!existing) {
                         alert("Game already in progress!");
@@ -273,7 +279,7 @@ It is important to study English.\t英語を勉強することは大切です。
         }
 
         // --- 3. GAME START LOGIC ---
-        window.hostStartGame = async () => {
+        async function hostStartGame() {
             const rawText = document.getElementById('gameWordsInput').value.trim();
             const lines = rawText.split('\n');
             let cards = [];
@@ -317,7 +323,7 @@ It is important to study English.\t英語を勉強することは大切です。
                 turnIndex: 0,
                 flippedIndices: []
             });
-        };
+        }
 
         // --- 4. GAMEPLAY LOGIC ---
         function renderGame(data) {
@@ -376,7 +382,7 @@ It is important to study English.\t英語を勉強することは大切です。
             });
         }
 
-        window.handleCardClick = async (idx) => {
+        async function handleCardClick(idx) {
             if (!localState) return;
             const data = localState;
 
@@ -405,7 +411,7 @@ It is important to study English.\t英語を勉強することは大切です。
                     await processMatch(roomRef, newCards, newFlipped, data);
                 }, 1500); 
             }
-        };
+        }
 
         async function processMatch(roomRef, currentCards, flippedIndices, data) {
             const idx1 = flippedIndices[0];
