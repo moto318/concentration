@@ -29,7 +29,12 @@
             <i data-lucide="globe" class="text-blue-600"></i>
             <h1 class="font-bold text-gray-800">English Online</h1>
         </div>
-        <div id="connectionStatus" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">Offline</div>
+        <div class="flex gap-2 items-center">
+            <button id="globalResetBtn" onclick="window.resetRoom()" class="hidden text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded font-bold shadow transition flex items-center gap-1">
+                <i data-lucide="trash-2" class="w-3 h-3"></i> Teacher Reset
+            </button>
+            <div id="connectionStatus" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">Offline</div>
+        </div>
     </nav>
 
     <div id="errorBanner" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 absolute top-16 left-0 right-0 z-50 text-xs" role="alert">
@@ -94,9 +99,6 @@
                         <h3 class="font-bold flex items-center gap-2">
                             <i data-lucide="crown" class="text-yellow-500 w-5 h-5"></i> Teacher Settings
                         </h3>
-                        <button onclick="window.resetRoom()" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded border border-red-200 flex items-center gap-1 transition">
-                            <i data-lucide="trash-2" class="w-3 h-3"></i> Reset Room
-                        </button>
                     </div>
                     
                     <p class="text-xs text-gray-500 mb-2">Paste Excel data (English [TAB] Japanese)</p>
@@ -160,7 +162,7 @@
         let currentRoomId = "";
         let myPlayerId = "user_" + Math.random().toString(36).substr(2, 9);
         let myName = "";
-        let isHostMode = false; // NEW: Explicit Host Mode Flag
+        let isHostMode = false; 
         let unsubscribe = null;
         let localState = null;
 
@@ -178,7 +180,7 @@ It is important to study English.\t英語を勉強することは大切です。
         window.startApp = async () => {
             myName = document.getElementById('playerName').value.trim();
             currentRoomId = document.getElementById('roomName').value.trim();
-            isHostMode = document.getElementById('isTeacherMode').checked; // Read Checkbox
+            isHostMode = document.getElementById('isTeacherMode').checked; 
 
             if (!myName || !currentRoomId) { alert("Please enter Name and Room ID."); return; }
 
@@ -192,19 +194,26 @@ It is important to study English.\t英語を勉強することは大切です。
             }
         };
 
-        // KICK ALL
+        // KICK ALL & RESET (Works from anywhere)
         window.resetRoom = async () => {
-            if (!confirm("Kick all other players and reset?")) return;
+            if (!confirm("RESET ROOM?\nThis will kick all players and return to lobby.")) return;
             try {
                 const roomRef = doc(db, "rooms", currentRoomId);
                 const myData = localState.players.find(p => p.id === myPlayerId);
-                await updateDoc(roomRef, {
-                    players: [myData],
+                // If I am missing (because I joined a played game), recreate me
+                const safePlayer = myData || { id: myPlayerId, name: myName, score: 0, isSpectator: true };
+
+                await setDoc(roomRef, {
                     status: 'lobby',
+                    players: [safePlayer],
+                    hostId: myPlayerId,
+                    cards: [],
                     setupComplete: false,
-                    cards: []
+                    turnIndex: 0,
+                    flippedIndices: [],
+                    lastUpdated: Date.now()
                 });
-                alert("Room reset.");
+                alert("Room Reset Completed.");
             } catch(e) {
                 showError("Reset Error: " + e.message);
             }
@@ -246,7 +255,12 @@ It is important to study English.\t英語を勉強することは大切です。
                 const roomRef = doc(db, "rooms", currentRoomId);
                 
                 const hostParticipates = document.getElementById('hostParticipates').checked;
-                const updatedPlayers = localState.players.map(p => {
+                
+                // Fetch latest state to be safe
+                const snap = await getDoc(roomRef);
+                const currentPlayers = snap.exists() ? snap.data().players : [];
+                
+                const updatedPlayers = currentPlayers.map(p => {
                     if (p.id === myPlayerId) {
                         return { ...p, isSpectator: !hostParticipates };
                     }
@@ -316,8 +330,6 @@ It is important to study English.\t英語を勉強することは大切です。
             const roomRef = doc(db, "rooms", currentRoomId);
             const snap = await getDoc(roomRef);
             
-            // If I am Host Mode, I default to Spectator=true (unless I change it later)
-            // If I am Student, Spectator=false
             const playerData = { 
                 id: myPlayerId, 
                 name: myName, 
@@ -330,7 +342,7 @@ It is important to study English.\t英語を勉強することは大切です。
                 await setDoc(roomRef, {
                     status: 'lobby',
                     players: [playerData],
-                    hostId: isHostMode ? myPlayerId : null, // Set host if teacher
+                    hostId: isHostMode ? myPlayerId : null, 
                     cards: [],
                     setupComplete: false,
                     turnIndex: 0,
@@ -340,20 +352,21 @@ It is important to study English.\t英語を勉強することは大切です。
             } else {
                 const data = snap.data();
                 const existing = data.players.find(p => p.name === myName);
-                
                 let updatePayload = {};
 
-                // If I am claiming to be Host, Update Host ID
                 if (isHostMode && data.hostId !== myPlayerId) {
                     updatePayload.hostId = myPlayerId;
                 }
 
                 if (existing) {
                     myPlayerId = existing.id;
-                    // Force update my spectator status if I just logged in
-                    // Note: In a real app we'd be careful, but for this simple tool, overwriting is helpful
+                    // If I am Host Mode, ensure I am spectator initially
+                    if (isHostMode) {
+                        // We need to update my specator status in the array
+                        const newPlayers = data.players.map(p => p.id === myPlayerId ? {...p, isSpectator: true} : p);
+                         updatePayload.players = newPlayers;
+                    }
                 } else {
-                    if (data.status === 'playing') { alert("Game in progress!"); return; }
                     updatePayload.players = arrayUnion(playerData);
                 }
 
@@ -362,22 +375,38 @@ It is important to study English.\t英語を勉強することは大切です。
                 }
             }
 
+            // Immediately switch to Lobby to show controls if Host
             switchScene('lobby');
             document.getElementById('lobbyRoomName').textContent = currentRoomId;
+
+            // SHOW/HIDE GLOBAL RESET BTN
+            const resetBtn = document.getElementById('globalResetBtn');
+            if (isHostMode) resetBtn.classList.remove('hidden');
+            else resetBtn.classList.add('hidden');
 
             unsubscribe = onSnapshot(roomRef, (docSnap) => {
                 if (!docSnap.exists()) { alert("Room reset."); location.reload(); return; }
                 const data = docSnap.data();
                 
                 const me = data.players.find(p => p.id === myPlayerId);
-                if (!me) { alert("Disconnected."); location.reload(); return; }
+                // If I am host, I should not be kicked easily, but if I am not in list:
+                if (!me) { 
+                     // If I am host mode but got kicked? recreate? No, just alert
+                     alert("Disconnected."); location.reload(); return; 
+                }
 
                 localState = data;
                 renderLobby(data);
+
+                // SCENE SWITCHING LOGIC
+                // If I am HOST, I want to stay in Lobby to edit, UNLESS I explicitly started game?
+                // Actually, if status is playing, Host should probably see game to watch.
+                // But Host needs a way to RESET. (Added Global Reset Button)
+                
                 if (data.status === 'playing') {
                     switchScene('game');
                     renderGame(data);
-                } else if (data.status === 'lobby') {
+                } else {
                     switchScene('lobby');
                 }
             }, (error) => {
@@ -440,17 +469,26 @@ It is important to study English.\t英語を勉強することは大切です。
             const commonStart = document.getElementById('commonStartArea');
             const waitMsg = document.getElementById('waitingMessage');
 
-            if (setupComplete) {
-                hostControls.classList.add('hidden');
-                commonStart.classList.remove('hidden');
-                waitMsg.classList.add('hidden');
+            // --- VISIBILITY LOGIC FIX ---
+            if (isHostMode) {
+                // TEACHER ALWAYS SEES CONTROLS, even if ready
+                hostControls.classList.remove('hidden');
+                
+                if (setupComplete) {
+                     commonStart.classList.remove('hidden'); // Show start button too
+                     waitMsg.classList.add('hidden');
+                } else {
+                     commonStart.classList.add('hidden');
+                     waitMsg.classList.add('hidden');
+                }
             } else {
-                commonStart.classList.add('hidden');
-                if (isHostMode) { // Check local flag
-                    hostControls.classList.remove('hidden');
+                // STUDENTS
+                hostControls.classList.add('hidden');
+                if (setupComplete) {
+                    commonStart.classList.remove('hidden');
                     waitMsg.classList.add('hidden');
                 } else {
-                    hostControls.classList.add('hidden');
+                    commonStart.classList.add('hidden');
                     waitMsg.classList.remove('hidden');
                 }
             }
