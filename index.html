@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Concentration Online</title>
+    <title>English Concentration Online v2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -27,11 +27,11 @@
     <nav class="bg-white shadow-sm border-b p-4 flex justify-between items-center z-10">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600"></i>
-            <h1 class="font-bold text-gray-800">English Online</h1>
+            <h1 class="font-bold text-gray-800">English Online (v2)</h1>
         </div>
         <div class="flex gap-2 items-center">
-            <button id="navResetBtn" onclick="window.resetRoom()" class="hidden bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded shadow flex items-center gap-1 animate-pulse">
-                <i data-lucide="trash-2" class="w-4 h-4"></i> RESET ALL
+            <button id="navResetBtn" onclick="window.forceResetRoom()" class="hidden bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded shadow flex items-center gap-1 animate-pulse">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> FORCE RESET
             </button>
             <div id="connectionStatus" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">Offline</div>
         </div>
@@ -166,7 +166,7 @@
         let unsubscribe = null;
         let localState = null;
 
-        // Persist User ID to keep Host Role on Refresh
+        // Persist User ID
         const storedId = localStorage.getItem('nico_player_id');
         if (storedId) {
             myPlayerId = storedId;
@@ -203,17 +203,19 @@ It is important to study English.\t英語を勉強することは大切です。
             }
         };
 
-        // KICK ALL & RESET (Works from anywhere)
-        window.resetRoom = async () => {
-            if (!confirm("⚠️ RESET ROOM?\n\nThis will KICK ALL players and reset the game to the lobby.")) return;
+        // ★★★ FORCE RESET (Kicks Everyone) ★★★
+        window.forceResetRoom = async () => {
+            if (!confirm("⚠️ RESET ROOM (FORCE)?\n\nThis will KICK ALL players (ghosts included) and restart the room.")) return;
             try {
                 const roomRef = doc(db, "rooms", currentRoomId);
-                const myData = localState.players.find(p => p.id === myPlayerId);
-                const safePlayer = myData || { id: myPlayerId, name: myName, score: 0, isSpectator: true };
+                
+                // Create a clean slate player list with just ME
+                const me = { id: myPlayerId, name: myName, score: 0, isSpectator: true }; // Teacher defaults to spectator
 
+                // setDoc overwrites EVERYTHING. Previous data is gone.
                 await setDoc(roomRef, {
                     status: 'lobby',
-                    players: [safePlayer],
+                    players: [me], 
                     hostId: myPlayerId,
                     cards: [],
                     setupComplete: false,
@@ -221,7 +223,7 @@ It is important to study English.\t英語を勉強することは大切です。
                     flippedIndices: [],
                     lastUpdated: Date.now()
                 });
-                alert("Room Reset Successfully.");
+                alert("Room has been completely reset!");
             } catch(e) {
                 showError("Reset Error: " + e.message);
             }
@@ -253,7 +255,6 @@ It is important to study English.\t英語を勉強することは大切です。
 
                 if (cards.length < 4) { alert("Need at least 2 pairs."); return; }
 
-                // Shuffle
                 for (let i = cards.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [cards[i], cards[j]] = [cards[j], cards[i]];
@@ -355,22 +356,18 @@ It is important to study English.\t英語を勉強することは大切です。
                 });
             } else {
                 const data = snap.data();
-                const existing = data.players.find(p => p.id === myPlayerId); // Check by ID now
+                const existing = data.players.find(p => p.id === myPlayerId); 
                 let updatePayload = {};
 
+                // ★ FORCE HOST TAKEOVER: If I say I am host, I AM HOST now.
                 if (isHostMode && data.hostId !== myPlayerId) {
                     updatePayload.hostId = myPlayerId;
                 }
 
                 if (existing) {
-                    // Update Name if changed
                     if (existing.name !== myName) {
                         const newPlayers = data.players.map(p => p.id === myPlayerId ? {...p, name: myName} : p);
                         updatePayload.players = newPlayers;
-                    }
-                    if (isHostMode) {
-                         // Ensure I am spectator if I said I am host (unless I changed it in settings later, but safe default)
-                         // Actually, let's NOT overwrite isSpectator here to avoid resetting it mid-game on reload
                     }
                 } else {
                     updatePayload.players = arrayUnion(playerData);
@@ -385,18 +382,28 @@ It is important to study English.\t英語を勉強することは大切です。
             document.getElementById('lobbyRoomName').textContent = currentRoomId;
 
             unsubscribe = onSnapshot(roomRef, (docSnap) => {
+                // If room was deleted/reset completely
                 if (!docSnap.exists()) { alert("Room reset."); location.reload(); return; }
                 const data = docSnap.data();
                 
+                // Am I still in the player list?
                 const me = data.players.find(p => p.id === myPlayerId);
-                if (!me) { alert("Disconnected."); location.reload(); return; }
+                
+                // If I am NOT in list, but I am Host, I should just re-add myself or alert.
+                // If I am student and kicked, reload.
+                if (!me) { 
+                    alert("Room was reset by teacher."); 
+                    location.reload(); 
+                    return; 
+                }
 
                 localState = data;
                 renderLobby(data);
 
-                // ★ CHECK IF I AM HOST -> SHOW RESET BUTTON ★
+                // ★ RESET BUTTON VISIBILITY: Based on Local "isTeacherMode" checkbox
+                // This ensures the button is ALWAYS there for you if you entered as teacher
                 const resetBtn = document.getElementById('navResetBtn');
-                if (data.hostId === myPlayerId) {
+                if (isHostMode) {
                     resetBtn.classList.remove('hidden');
                 } else {
                     resetBtn.classList.add('hidden');
@@ -468,11 +475,9 @@ It is important to study English.\t英語を勉強することは大切です。
             const commonStart = document.getElementById('commonStartArea');
             const waitMsg = document.getElementById('waitingMessage');
 
-            // HOST CONTROLS VISIBILITY
-            if (data.hostId === myPlayerId) {
+            if (isHostMode) {
                 hostControls.classList.remove('hidden');
                 waitMsg.classList.add('hidden');
-                // Always show start button for host if ready
                 if (setupComplete) commonStart.classList.remove('hidden');
                 else commonStart.classList.add('hidden');
             } else {
