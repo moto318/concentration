@@ -81,15 +81,26 @@
                     <p class="text-sm text-gray-400 mt-2">Any player can press this button.</p>
                 </div>
 
-                <div id="hostControls" class="bg-gray-50 p-6 rounded-xl border border-gray-200 text-left hidden">
-                    <h3 class="font-bold mb-4 flex items-center gap-2">
-                        <i data-lucide="crown" class="text-yellow-500 w-5 h-5"></i> Teacher Settings
-                    </h3>
-                    <p class="text-sm text-gray-600 mb-2">You are the Host (<b><span id="hostNameDisplay"></span></b>).</p>
-                    <p class="text-xs text-gray-500 mb-2">Paste Excel data here (English [TAB] Japanese)</p>
-                    <textarea id="gameWordsInput" class="w-full h-32 border rounded p-2 text-sm font-mono mb-4 bg-white" placeholder="English [TAB] Japanese"></textarea>
+                <div id="hostControls" class="bg-gray-50 p-6 rounded-xl border border-gray-200 text-left hidden shadow-inner">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold flex items-center gap-2">
+                            <i data-lucide="crown" class="text-yellow-500 w-5 h-5"></i> Teacher Settings
+                        </h3>
+                        <button onclick="window.resetRoom()" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded border border-red-200 flex items-center gap-1 transition">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i> Reset Room (Kick All)
+                        </button>
+                    </div>
+                    
+                    <p class="text-xs text-gray-500 mb-2">1. Paste Excel data (English [TAB] Japanese)</p>
+                    <textarea id="gameWordsInput" class="w-full h-24 border rounded p-2 text-sm font-mono mb-2 bg-white" placeholder="English [TAB] Japanese"></textarea>
+                    
+                    <div class="flex items-center gap-2 mb-4">
+                        <input type="checkbox" id="hostParticipates" class="w-4 h-4 text-blue-600 rounded">
+                        <label for="hostParticipates" class="text-sm text-gray-700 font-medium">I will also play (Participate in game)</label>
+                    </div>
+
                     <button onclick="window.saveGameSettings()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
-                        <i data-lucide="save" class="w-4 h-4"></i> Save & Ready
+                        <i data-lucide="save" class="w-4 h-4"></i> 2. Save & Ready
                     </button>
                 </div>
                 
@@ -116,9 +127,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         
-        // --- YOUR CONFIG (Embedded) ---
         const firebaseConfig = {
           apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
           authDomain: "concentration-2cb8a.firebaseapp.com",
@@ -129,7 +139,6 @@
           measurementId: "G-D3GC22P1P5"
         };
 
-        // Initialize
         let app, db;
         try {
             app = initializeApp(firebaseConfig);
@@ -147,7 +156,6 @@
         let unsubscribe = null;
         let localState = null;
 
-        // UI References
         const scenes = {
             setup: document.getElementById('sceneSetup'),
             lobby: document.getElementById('sceneLobby'),
@@ -158,15 +166,11 @@ Can you help me?\t私を手伝ってくれますか？
 This is the book I bought yesterday.\tこれは私が昨日買った本です。
 It is important to study English.\t英語を勉強することは大切です。`;
 
-        // --- EXPOSE FUNCTIONS TO WINDOW ---
+        // --- EXPOSE FUNCTIONS ---
         window.startApp = async () => {
             myName = document.getElementById('playerName').value.trim();
             currentRoomId = document.getElementById('roomName').value.trim();
-
-            if (!myName || !currentRoomId) {
-                alert("Please enter Name and Room ID.");
-                return;
-            }
+            if (!myName || !currentRoomId) { alert("Please enter Name and Room ID."); return; }
 
             try {
                 localStorage.setItem('nico_concentration_name', myName);
@@ -175,6 +179,25 @@ It is important to study English.\t英語を勉強することは大切です。
             } catch (e) {
                 console.error(e);
                 showError("Join Error: " + e.message);
+            }
+        };
+
+        // KICK ALL PLAYERS (EXCEPT ME)
+        window.resetRoom = async () => {
+            if (!confirm("Are you sure you want to kick all other players and reset?")) return;
+            try {
+                const roomRef = doc(db, "rooms", currentRoomId);
+                // Keep only myself
+                const myData = localState.players.find(p => p.id === myPlayerId);
+                await updateDoc(roomRef, {
+                    players: [myData],
+                    status: 'lobby',
+                    setupComplete: false,
+                    cards: []
+                });
+                alert("Room reset! Ghost players removed.");
+            } catch(e) {
+                showError("Reset Error: " + e.message);
             }
         };
 
@@ -202,10 +225,7 @@ It is important to study English.\t英語を勉強することは大切です。
                     }
                 });
 
-                if (cards.length < 4) {
-                    alert("Need at least 2 pairs.");
-                    return;
-                }
+                if (cards.length < 4) { alert("Need at least 2 pairs."); return; }
 
                 // Shuffle
                 for (let i = cards.length - 1; i > 0; i--) {
@@ -215,9 +235,21 @@ It is important to study English.\t英語を勉強することは大切です。
                 cards.forEach((c, i) => c.id = i);
 
                 const roomRef = doc(db, "rooms", currentRoomId);
+                
+                // HOST ROLE SETTING
+                const hostParticipates = document.getElementById('hostParticipates').checked;
+                // Update my player status in the array
+                const updatedPlayers = localState.players.map(p => {
+                    if (p.id === myPlayerId) {
+                        return { ...p, isSpectator: !hostParticipates };
+                    }
+                    return p;
+                });
+
                 await updateDoc(roomRef, {
                     cards: cards,
-                    setupComplete: true
+                    setupComplete: true,
+                    players: updatedPlayers
                 });
 
             } catch(e) {
@@ -228,9 +260,16 @@ It is important to study English.\t英語を勉強することは大切です。
         window.startGame = async () => {
             try {
                 const roomRef = doc(db, "rooms", currentRoomId);
+                // Find first non-spectator player
+                let firstTurn = 0;
+                const players = localState.players;
+                while(firstTurn < players.length && players[firstTurn].isSpectator) {
+                    firstTurn++;
+                }
+
                 await updateDoc(roomRef, {
                     status: 'playing',
-                    turnIndex: 0,
+                    turnIndex: firstTurn,
                     flippedIndices: []
                 });
             } catch(e) {
@@ -269,7 +308,8 @@ It is important to study English.\t英語を勉強することは大切です。
         async function joinRoomLogic() {
             const roomRef = doc(db, "rooms", currentRoomId);
             const snap = await getDoc(roomRef);
-            const playerData = { id: myPlayerId, name: myName, score: 0 };
+            // Default: Spectator false
+            const playerData = { id: myPlayerId, name: myName, score: 0, isSpectator: false };
 
             if (!snap.exists()) {
                 isHost = true;
@@ -285,17 +325,15 @@ It is important to study English.\t英語を勉強することは大切です。
                 });
             } else {
                 const data = snap.data();
-                if (data.status === 'playing') {
-                    const existing = data.players.find(p => p.name === myName);
-                    if (!existing) { alert("Game in progress!"); return; }
+                const existing = data.players.find(p => p.name === myName);
+                if (existing) {
+                    // Rejoin as existing user
                     myPlayerId = existing.id;
+                    // If I rejoined, ensure I'm still there
                 } else {
-                    const existing = data.players.find(p => p.name === myName);
-                    if (!existing) {
-                        await updateDoc(roomRef, { players: arrayUnion(playerData) });
-                    } else {
-                        myPlayerId = existing.id; 
-                    }
+                    if (data.status === 'playing') { alert("Game in progress!"); return; }
+                    // Join as new
+                    await updateDoc(roomRef, { players: arrayUnion(playerData) });
                 }
             }
 
@@ -304,13 +342,29 @@ It is important to study English.\t英語を勉強することは大切です。
             document.getElementById('userIdentityDisplay').textContent = "You are: " + myName;
 
             unsubscribe = onSnapshot(roomRef, (docSnap) => {
-                if (!docSnap.exists()) return;
+                if (!docSnap.exists()) {
+                    // Room deleted or reset?
+                    alert("Room was reset. Please login again.");
+                    location.reload(); 
+                    return;
+                }
                 const data = docSnap.data();
+                
+                // CHECK IF I WAS KICKED
+                const me = data.players.find(p => p.id === myPlayerId);
+                if (!me) {
+                    alert("You have been disconnected (Room Reset).");
+                    location.reload();
+                    return;
+                }
+
                 localState = data;
                 renderLobby(data);
                 if (data.status === 'playing') {
                     switchScene('game');
                     renderGame(data);
+                } else if (data.status === 'lobby') {
+                    switchScene('lobby'); // Go back to lobby if reset
                 }
             }, (error) => {
                 showError("Sync Error: " + error.message);
@@ -333,7 +387,15 @@ It is important to study English.\t英語を勉強することは大切です。
             } else {
                 currentCards[idx1].isFlipped = false;
                 currentCards[idx2].isFlipped = false;
-                const nextTurn = (data.turnIndex + 1) % data.players.length;
+                
+                // FIND NEXT TURN (SKIP SPECTATORS)
+                let nextTurn = (data.turnIndex + 1) % data.players.length;
+                let loopCount = 0;
+                while(data.players[nextTurn].isSpectator && loopCount < data.players.length) {
+                    nextTurn = (nextTurn + 1) % data.players.length;
+                    loopCount++;
+                }
+
                 updates = { cards: currentCards, turnIndex: nextTurn, flippedIndices: [] };
             }
             await updateDoc(roomRef, updates);
@@ -343,27 +405,32 @@ It is important to study English.\t英語を勉強することは大切です。
             const list = document.getElementById('lobbyPlayerList');
             list.innerHTML = '';
             
-            // Find who is the real host object
             const hostPlayer = data.players.find(p => p.id === data.hostId);
             const hostName = hostPlayer ? hostPlayer.name : "???";
 
             data.players.forEach(p => {
                 const isHostUser = p.id === data.hostId;
+                const isSpectator = p.isSpectator;
                 const div = document.createElement('div');
-                div.className = "bg-gray-100 p-4 rounded-lg flex flex-col items-center justify-center";
-                div.innerHTML = `<div class="bg-white p-3 rounded-full mb-2 shadow-sm"><i data-lucide="user" class="w-6 h-6 text-blue-500"></i></div><span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>${isHostUser ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}`;
+                div.className = "bg-gray-100 p-4 rounded-lg flex flex-col items-center justify-center relative";
+                div.innerHTML = `
+                    <div class="bg-white p-3 rounded-full mb-2 shadow-sm relative">
+                        <i data-lucide="${isSpectator ? 'eye' : 'user'}" class="w-6 h-6 ${isSpectator ? 'text-gray-400' : 'text-blue-500'}"></i>
+                    </div>
+                    <span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>
+                    ${isHostUser ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}
+                    ${isSpectator ? '<span class="text-xs text-gray-500 mt-1">(Spectator)</span>' : ''}
+                `;
                 list.appendChild(div);
             });
             if (typeof lucide !== 'undefined') lucide.createIcons();
 
-            // LOGIC FOR BUTTONS (Improved: Checks Name match too)
             const setupComplete = data.setupComplete === true;
             const hostControls = document.getElementById('hostControls');
             const commonStart = document.getElementById('commonStartArea');
             const waitMsg = document.getElementById('waitingMessage');
             const hostNameDisplay = document.getElementById('hostNameDisplay');
 
-            // Check if I am host by ID OR by Name (Safety Fallback)
             const amIHost = (myPlayerId === data.hostId) || (hostPlayer && hostPlayer.name === myName);
 
             if (setupComplete) {
@@ -375,7 +442,7 @@ It is important to study English.\t英語を勉強することは大切です。
                 if (amIHost) {
                     hostControls.classList.remove('hidden');
                     waitMsg.classList.add('hidden');
-                    hostNameDisplay.textContent = myName;
+                    if(hostNameDisplay) hostNameDisplay.textContent = myName;
                 } else {
                     hostControls.classList.add('hidden');
                     waitMsg.classList.remove('hidden');
@@ -386,19 +453,25 @@ It is important to study English.\t英語を勉強することは大切です。
         function renderGame(data) {
             const currentPlayer = data.players[data.turnIndex];
             const indicator = document.getElementById('gameTurnIndicator');
-            indicator.textContent = currentPlayer.name;
-            const isMyTurn = currentPlayer.id === myPlayerId;
             
-            if (isMyTurn) {
-                indicator.classList.add('bg-green-100', 'text-green-700', 'my-turn-alert');
-                indicator.textContent += " (YOU!)";
-            } else {
-                indicator.classList.remove('bg-green-100', 'text-green-700', 'my-turn-alert');
+            // Safety check if player left
+            if(currentPlayer) {
+                indicator.textContent = currentPlayer.name;
+                const isMyTurn = currentPlayer.id === myPlayerId;
+                if (isMyTurn) {
+                    indicator.classList.add('bg-green-100', 'text-green-700', 'my-turn-alert');
+                    indicator.textContent += " (YOU!)";
+                } else {
+                    indicator.classList.remove('bg-green-100', 'text-green-700', 'my-turn-alert');
+                }
             }
 
             const sb = document.getElementById('gameScoreBoard');
             sb.innerHTML = '';
             data.players.forEach((p, idx) => {
+                // Don't show score for spectators to save space, or just dim them
+                if (p.isSpectator) return; 
+
                 const div = document.createElement('div');
                 div.className = `p-3 rounded-lg border flex justify-between items-center ${idx === data.turnIndex ? 'active-player' : 'bg-white'}`;
                 div.innerHTML = `<span class="text-sm font-bold truncate">${p.name}</span><span class="text-xl font-bold">${p.score || 0}</span>`;
