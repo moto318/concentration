@@ -69,6 +69,7 @@
                 <div>
                     <h2 class="text-3xl font-bold text-gray-800 mb-2">Room: <span id="lobbyRoomName" class="text-blue-600"></span></h2>
                     <p class="text-gray-500">Waiting for players...</p>
+                    <p id="userIdentityDisplay" class="text-xs text-gray-400 mt-1"></p>
                 </div>
 
                 <div id="lobbyPlayerList" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
@@ -82,8 +83,9 @@
 
                 <div id="hostControls" class="bg-gray-50 p-6 rounded-xl border border-gray-200 text-left hidden">
                     <h3 class="font-bold mb-4 flex items-center gap-2">
-                        <i data-lucide="crown" class="text-yellow-500 w-5 h-5"></i> Teacher Settings (Host)
+                        <i data-lucide="crown" class="text-yellow-500 w-5 h-5"></i> Teacher Settings
                     </h3>
+                    <p class="text-sm text-gray-600 mb-2">You are the Host (<b><span id="hostNameDisplay"></span></b>).</p>
                     <p class="text-xs text-gray-500 mb-2">Paste Excel data here (English [TAB] Japanese)</p>
                     <textarea id="gameWordsInput" class="w-full h-32 border rounded p-2 text-sm font-mono mb-4 bg-white" placeholder="English [TAB] Japanese"></textarea>
                     <button onclick="window.saveGameSettings()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
@@ -176,15 +178,13 @@ It is important to study English.\t英語を勉強することは大切です。
             }
         };
 
-        // STEP 1: Host saves the cards to the database
         window.saveGameSettings = async () => {
             try {
                 const rawText = document.getElementById('gameWordsInput').value.trim();
-                constlines = rawText.split('\n');
+                const lines = rawText.split('\n');
                 let cards = [];
                 let pairId = 0;
 
-                const lines = rawText.split('\n');
                 lines.forEach((line) => {
                     let parts = line.split('\t');
                     if (parts.length < 2 && line.includes(',')) {
@@ -215,7 +215,6 @@ It is important to study English.\t英語を勉強することは大切です。
                 cards.forEach((c, i) => c.id = i);
 
                 const roomRef = doc(db, "rooms", currentRoomId);
-                // Just save the cards, don't start game yet
                 await updateDoc(roomRef, {
                     cards: cards,
                     setupComplete: true
@@ -226,7 +225,6 @@ It is important to study English.\t英語を勉強することは大切です。
             }
         };
 
-        // STEP 2: Anyone can start the game if setup is complete
         window.startGame = async () => {
             try {
                 const roomRef = doc(db, "rooms", currentRoomId);
@@ -298,13 +296,13 @@ It is important to study English.\t英語を勉強することは大切です。
                     } else {
                         myPlayerId = existing.id; 
                     }
-                    if (data.hostId === myPlayerId) isHost = true;
                 }
             }
 
             switchScene('lobby');
             document.getElementById('lobbyRoomName').textContent = currentRoomId;
-            
+            document.getElementById('userIdentityDisplay').textContent = "You are: " + myName;
+
             unsubscribe = onSnapshot(roomRef, (docSnap) => {
                 if (!docSnap.exists()) return;
                 const data = docSnap.data();
@@ -344,34 +342,41 @@ It is important to study English.\t英語を勉強することは大切です。
         function renderLobby(data) {
             const list = document.getElementById('lobbyPlayerList');
             list.innerHTML = '';
+            
+            // Find who is the real host object
+            const hostPlayer = data.players.find(p => p.id === data.hostId);
+            const hostName = hostPlayer ? hostPlayer.name : "???";
+
             data.players.forEach(p => {
+                const isHostUser = p.id === data.hostId;
                 const div = document.createElement('div');
                 div.className = "bg-gray-100 p-4 rounded-lg flex flex-col items-center justify-center";
-                div.innerHTML = `<div class="bg-white p-3 rounded-full mb-2 shadow-sm"><i data-lucide="user" class="w-6 h-6 text-blue-500"></i></div><span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>${p.id === data.hostId ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}`;
+                div.innerHTML = `<div class="bg-white p-3 rounded-full mb-2 shadow-sm"><i data-lucide="user" class="w-6 h-6 text-blue-500"></i></div><span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>${isHostUser ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}`;
                 list.appendChild(div);
             });
             if (typeof lucide !== 'undefined') lucide.createIcons();
 
-            // LOGIC FOR BUTTONS
+            // LOGIC FOR BUTTONS (Improved: Checks Name match too)
             const setupComplete = data.setupComplete === true;
             const hostControls = document.getElementById('hostControls');
             const commonStart = document.getElementById('commonStartArea');
             const waitMsg = document.getElementById('waitingMessage');
+            const hostNameDisplay = document.getElementById('hostNameDisplay');
+
+            // Check if I am host by ID OR by Name (Safety Fallback)
+            const amIHost = (myPlayerId === data.hostId) || (hostPlayer && hostPlayer.name === myName);
 
             if (setupComplete) {
-                // If words are ready, ANYONE can start
                 hostControls.classList.add('hidden');
                 commonStart.classList.remove('hidden');
                 waitMsg.classList.add('hidden');
             } else {
-                // If not ready
                 commonStart.classList.add('hidden');
-                if (myPlayerId === data.hostId) {
-                    // Host sees input
+                if (amIHost) {
                     hostControls.classList.remove('hidden');
                     waitMsg.classList.add('hidden');
+                    hostNameDisplay.textContent = myName;
                 } else {
-                    // Guest waits
                     hostControls.classList.add('hidden');
                     waitMsg.classList.remove('hidden');
                 }
