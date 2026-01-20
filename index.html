@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Concentration Online v4 (Open Admin)</title>
+    <title>English Concentration Online v4.1 (Fixed)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -22,8 +22,6 @@
         
         /* UI Elements */
         .active-player { border-left: 5px solid #3b82f6; background-color: #eff6ff; }
-        .my-turn-alert { animation: pulse-red 2s infinite; border: 2px solid #ef4444 !important; }
-        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
         
         /* Modal Transitions */
         .modal { transition: opacity 0.3s ease-in-out; opacity: 0; pointer-events: none; }
@@ -35,14 +33,13 @@
     <nav class="bg-white shadow border-b px-4 py-3 flex justify-between items-center z-50 relative">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600 w-6 h-6"></i>
-            <h1 class="font-bold text-lg tracking-tight">English Online <span class="text-xs font-normal text-gray-400">v4</span></h1>
+            <h1 class="font-bold text-lg tracking-tight">English Online <span class="text-xs font-normal text-gray-400">v4.1</span></h1>
         </div>
         <div class="flex items-center gap-3">
             <span id="roomBadge" class="hidden text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">Room: <span id="navRoomId">--</span></span>
             
             <button onclick="window.toggleSettings()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-full transition relative group">
                 <i data-lucide="settings" class="w-5 h-5"></i>
-                <span class="absolute top-10 right-0 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-50 pointer-events-none">Admin Menu</span>
             </button>
         </div>
     </nav>
@@ -82,8 +79,7 @@
                 <p class="text-gray-500 mt-2">Waiting for players...</p>
             </div>
             
-            <div id="lobbyPlayerList" class="flex flex-wrap justify-center gap-4 max-w-3xl w-full mb-8">
-                </div>
+            <div id="lobbyPlayerList" class="flex flex-wrap justify-center gap-4 max-w-3xl w-full mb-8"></div>
 
             <div id="gameStartArea" class="hidden animate-bounce">
                  <button onclick="window.startGame()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold py-4 px-12 rounded-full shadow-lg flex items-center gap-3 transition">
@@ -102,13 +98,11 @@
                     </div>
                     <div id="turnBadge" class="hidden px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded-full">YOU</div>
                 </div>
-                <div class="flex-1 p-2 space-y-2 overflow-y-auto" id="scoreBoard">
-                    </div>
+                <div class="flex-1 p-2 space-y-2 overflow-y-auto" id="scoreBoard"></div>
             </div>
 
             <div class="flex-1 bg-slate-100 p-2 md:p-6 overflow-y-auto">
-                <div id="gameGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4 max-w-6xl mx-auto pb-20">
-                    </div>
+                <div id="gameGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4 max-w-6xl mx-auto pb-20"></div>
             </div>
         </div>
     </main>
@@ -126,8 +120,8 @@
                 
                 <section>
                     <h4 class="font-bold text-gray-700 mb-2 border-l-4 border-blue-500 pl-2">1. Create Cards (Excel Copy-Paste)</h4>
-                    <p class="text-xs text-gray-500 mb-2">Format: English [TAB] Japanese. (Just copy columns from Excel/Spreadsheet)</p>
-                    <textarea id="wordListInput" class="w-full h-32 p-3 border rounded-lg font-mono text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-200 outline-none resize-y" placeholder="Apple    りんご&#10;Banana    バナナ&#10;Cat    猫"></textarea>
+                    <p class="text-xs text-gray-500 mb-2">Format: English [TAB] Japanese.</p>
+                    <textarea id="wordListInput" class="w-full h-32 p-3 border rounded-lg font-mono text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-200 outline-none resize-y" placeholder="Apple    りんご&#10;Banana    バナナ"></textarea>
                     <button onclick="window.updateCards()" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg shadow flex justify-center items-center gap-2">
                         <i data-lucide="save" class="w-4 h-4"></i> Generate Cards & Sync
                     </button>
@@ -149,9 +143,7 @@
                 
                 <section class="pt-4 border-t">
                      <h4 class="font-bold text-gray-700 mb-2 border-l-4 border-gray-500 pl-2">3. Player Management</h4>
-                     <div id="adminPlayerList" class="bg-gray-100 rounded p-2 text-sm max-h-32 overflow-y-auto">
-                        <p class="text-gray-400 text-center">No players yet.</p>
-                     </div>
+                     <div id="adminPlayerList" class="bg-gray-100 rounded p-2 text-sm max-h-32 overflow-y-auto"></div>
                 </section>
             </div>
         </div>
@@ -159,7 +151,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, deleteDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
@@ -210,10 +202,8 @@
         // --- INIT ---
         window.onload = () => {
             lucide.createIcons();
-            // Load saved input
             const saved = localStorage.getItem('nico_last_words');
             if(saved) document.getElementById('wordListInput').value = saved;
-            // Load saved login
             if(localStorage.getItem('nico_name')) document.getElementById('playerName').value = localStorage.getItem('nico_name');
             if(localStorage.getItem('nico_room')) document.getElementById('roomName').value = localStorage.getItem('nico_room');
         };
@@ -222,29 +212,21 @@
         window.startApp = async () => {
             const nameIn = document.getElementById('playerName').value.trim();
             const roomIn = document.getElementById('roomName').value.trim();
-            
             if(!nameIn || !roomIn) { alert("Please enter Name and Room ID"); return; }
-            
             myName = nameIn;
             roomId = roomIn;
             localStorage.setItem('nico_name', myName);
             localStorage.setItem('nico_room', roomId);
-
-            // UI Update
             els.navRoom.textContent = roomId;
             els.roomBadge.classList.remove('hidden');
-            
             await joinRoom();
         };
 
         async function joinRoom() {
             const roomRef = doc(db, "rooms", roomId);
-            
             try {
-                // Ensure room exists or create
                 const snap = await getDoc(roomRef);
                 const me = { id: myId, name: myName, score: 0 };
-
                 if (!snap.exists()) {
                     await setDoc(roomRef, {
                         status: 'lobby',
@@ -259,7 +241,6 @@
                     const pList = data.players || [];
                     const exists = pList.find(p => p.id === myId);
                     if(exists) {
-                        // Update name if changed
                         if(exists.name !== myName) {
                             const newP = pList.map(p => p.id === myId ? {...p, name: myName} : p);
                             await updateDoc(roomRef, { players: newP });
@@ -268,8 +249,6 @@
                         await updateDoc(roomRef, { players: arrayUnion(me) });
                     }
                 }
-
-                // Subscribe
                 unsubscribe = onSnapshot(roomRef, (docSnap) => {
                     if(!docSnap.exists()) {
                         alert("Room was deleted by Admin.");
@@ -280,33 +259,24 @@
                     currentData = data;
                     render(data);
                 });
-
-            } catch (e) {
-                console.error(e);
-                alert("Connection Error: " + e.message);
-            }
+            } catch (e) { console.error(e); alert("Connection Error: " + e.message); }
         }
 
         // --- RENDERING ---
         function render(data) {
-            // Scene Switch
             Object.values(scenes).forEach(s => s.classList.add('hidden'));
             if(data.status === 'lobby') scenes.lobby.classList.remove('hidden');
             else if(data.status === 'playing') scenes.game.classList.remove('hidden');
             
-            // 1. Lobby Render
             els.lobbyRoom.textContent = roomId;
             els.lobbyList.innerHTML = data.players.map(p => `
                 <div class="bg-white p-3 rounded-lg shadow-sm w-32 flex flex-col items-center">
-                    <div class="bg-blue-100 p-2 rounded-full mb-1">
-                        <i data-lucide="user" class="w-5 h-5 text-blue-600"></i>
-                    </div>
+                    <div class="bg-blue-100 p-2 rounded-full mb-1"><i data-lucide="user" class="w-5 h-5 text-blue-600"></i></div>
                     <span class="font-bold text-sm truncate w-full text-center">${p.name}</span>
                 </div>
             `).join('');
             
-            const hasCards = data.cards && data.cards.length > 0;
-            if(hasCards) {
+            if(data.cards && data.cards.length > 0) {
                 els.startBtn.classList.remove('hidden');
                 els.waitText.classList.add('hidden');
             } else {
@@ -314,24 +284,18 @@
                 els.waitText.classList.remove('hidden');
             }
 
-            // 2. Game Render
-            if(data.status === 'playing') {
-                renderGame(data);
-            }
+            if(data.status === 'playing') renderGame(data);
 
-            // 3. Admin List Render
             els.adminList.innerHTML = data.players.map(p => `
                 <div class="flex justify-between items-center bg-white p-2 mb-1 rounded border">
                     <span>${p.name}</span>
                     <button onclick="window.kickPlayer('${p.id}')" class="text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded border border-red-200">Kick</button>
                 </div>
             `).join('');
-
             lucide.createIcons();
         }
 
         function renderGame(data) {
-            // Turn
             const turnPlayer = data.players[data.turn];
             if(turnPlayer) {
                 els.turnInd.textContent = turnPlayer.name;
@@ -345,7 +309,6 @@
                 }
             }
 
-            // Scoreboard
             els.scoreBoard.innerHTML = data.players.map((p, idx) => `
                 <div class="flex justify-between items-center p-2 rounded ${idx === data.turn ? 'active-player' : 'bg-white border'}">
                     <span class="text-sm font-bold truncate w-24">${p.name}</span>
@@ -353,14 +316,11 @@
                 </div>
             `).join('');
 
-            // Grid
             els.grid.innerHTML = "";
             data.cards.forEach((card, idx) => {
                 const div = document.createElement('div');
                 div.className = `card-container ${card.flipped ? 'flipped' : ''} ${card.matched ? 'matched' : ''}`;
-                if(!card.flipped && !card.matched) {
-                    div.onclick = () => handleCardClick(idx);
-                }
+                if(!card.flipped && !card.matched) div.onclick = () => handleCardClick(idx);
                 div.innerHTML = `
                     <div class="card-inner bg-white">
                         <div class="card-front text-white">${idx + 1}</div>
@@ -371,58 +331,75 @@
             });
         }
 
-        // --- GAME LOGIC ---
+        // --- GAME LOGIC (FIXED) ---
         window.handleCardClick = async (idx) => {
-            if(!currentData) return;
+            if(!currentData) { console.error("No data"); return; }
             const d = currentData;
-            // Rules
-            if(d.players[d.turn].id !== myId) return; // Not my turn
-            if(d.flipped.length >= 2) return; // Wait
-            if(d.cards[idx].flipped || d.cards[idx].matched) return;
+            const currentPlayer = d.players[d.turn];
 
-            // 1. Flip
-            const newCards = [...d.cards];
-            newCards[idx].flipped = true;
-            const newFlipped = [...d.flipped, idx];
-            
-            await updateDoc(doc(db, "rooms", roomId), {
-                cards: newCards,
-                flipped: newFlipped
-            });
-
-            // 2. Check Match (after delay if 2nd card)
-            if(newFlipped.length === 2) {
-                setTimeout(async () => {
-                    const c1 = newCards[newFlipped[0]];
-                    const c2 = newCards[newFlipped[1]];
-                    
-                    if(c1.pairId === c2.pairId) {
-                        // Match!
-                        c1.matched = true;
-                        c2.matched = true;
-                        // Score +1
-                        const newPlayers = [...d.players];
-                        newPlayers[d.turn].score++;
-                        await updateDoc(doc(db, "rooms", roomId), {
-                            cards: newCards,
-                            players: newPlayers,
-                            flipped: [] // Reset flip buffer
-                        });
-                    } else {
-                        // Miss
-                        c1.flipped = false;
-                        c2.flipped = false;
-                        // Next turn
-                        const nextTurn = (d.turn + 1) % d.players.length;
-                        await updateDoc(doc(db, "rooms", roomId), {
-                            cards: newCards,
-                            flipped: [],
-                            turn: nextTurn
-                        });
-                    }
-                }, 1500);
+            // 1. Validate Data
+            if (!currentPlayer) {
+                showError("Data Sync Error. Please Reset Game.");
+                return;
             }
+
+            // 2. Turn Check (Allow if Solo)
+            const isSoloPlay = d.players.length === 1;
+            if (!isSoloPlay && currentPlayer.id !== myId) {
+                showError(`It is ${currentPlayer.name}'s turn!`);
+                return;
+            }
+
+            // 3. Status Check
+            if (d.flipped.length >= 2) return;
+            if (d.cards[idx].flipped || d.cards[idx].matched) return;
+
+            try {
+                const newCards = [...d.cards];
+                newCards[idx].flipped = true;
+                const newFlipped = [...d.flipped, idx];
+                
+                await updateDoc(doc(db, "rooms", roomId), {
+                    cards: newCards,
+                    flipped: newFlipped
+                });
+
+                if(newFlipped.length === 2) {
+                    setTimeout(async () => {
+                        await checkMatch(newCards, newFlipped, d);
+                    }, 1500);
+                }
+            } catch (e) { showError("Error: " + e.message); }
         };
+
+        async function checkMatch(currentCards, flippedIndices, d) {
+            const idx1 = flippedIndices[0];
+            const idx2 = flippedIndices[1];
+            const c1 = currentCards[idx1];
+            const c2 = currentCards[idx2];
+            
+            let nextTurn = d.turn;
+            let newPlayers = [...d.players];
+
+            if(c1.pairId === c2.pairId) {
+                // Match
+                c1.matched = true;
+                c2.matched = true;
+                newPlayers[d.turn].score = (newPlayers[d.turn].score || 0) + 1;
+            } else {
+                // Miss
+                c1.flipped = false;
+                c2.flipped = false;
+                nextTurn = (d.turn + 1) % d.players.length;
+            }
+
+            await updateDoc(doc(db, "rooms", roomId), {
+                cards: currentCards,
+                players: newPlayers,
+                flipped: [],
+                turn: nextTurn
+            });
+        }
 
         // --- ADMIN / SETTINGS ACTIONS ---
         window.toggleSettings = () => {
@@ -433,18 +410,15 @@
 
         window.updateCards = async () => {
             const raw = document.getElementById('wordListInput').value;
-            localStorage.setItem('nico_last_words', raw); // Save for later
+            localStorage.setItem('nico_last_words', raw);
             
             const lines = raw.split('\n');
             let deck = [];
             let pairCount = 0;
 
             lines.forEach(line => {
-                // Handle tab from Excel
                 let parts = line.split('\t');
-                // Fallback for comma
                 if(parts.length < 2 && line.includes(',')) parts = line.split(',');
-                
                 if(parts.length >= 2) {
                     const t1 = parts[0].trim();
                     const t2 = parts[1].trim();
@@ -458,7 +432,6 @@
 
             if(deck.length < 4) { alert("Please provide at least 2 pairs."); return; }
 
-            // Shuffle
             for (let i = deck.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [deck[i], deck[j]] = [deck[j], deck[i]];
@@ -467,16 +440,14 @@
             await updateDoc(doc(db, "rooms", roomId), {
                 cards: deck,
                 flipped: [],
-                status: 'lobby', // Return to lobby
+                status: 'lobby',
                 turn: 0
             });
             
-            // Reset scores
             if(currentData) {
                 const resetPlayers = currentData.players.map(p => ({...p, score: 0}));
                 await updateDoc(doc(db, "rooms", roomId), { players: resetPlayers });
             }
-
             alert(`Cards updated! (${pairCount} pairs)`);
             window.toggleSettings();
         };
@@ -486,8 +457,7 @@
         };
 
         window.resetGame = async () => {
-            if(!confirm("Restart game? (Scores will be reset, players kept)")) return;
-            // Reshuffle current cards
+            if(!confirm("Restart game? (Scores will be reset)")) return;
             let deck = [...currentData.cards];
             deck.forEach(c => { c.flipped = false; c.matched = false; });
              for (let i = deck.length - 1; i > 0; i--) {
@@ -495,7 +465,6 @@
                 [deck[i], deck[j]] = [deck[j], deck[i]];
             }
             const resetPlayers = currentData.players.map(p => ({...p, score: 0}));
-            
             await updateDoc(doc(db, "rooms", roomId), {
                 status: 'playing',
                 cards: deck,
@@ -507,10 +476,9 @@
         };
 
         window.destroyRoom = async () => {
-            if(!confirm("⚠️ DANGER: Kick all players and delete room?")) return;
-            await deleteDoc(doc(db, "rooms", roomId)); // Or set empty
-            // Actually better to just set to empty to trigger client exit
-            await setDoc(doc(db, "rooms", roomId), { deleted: true });
+            if(!confirm("⚠️ DANGER: Kick all & Delete?")) return;
+            await deleteDoc(doc(db, "rooms", roomId)); 
+            location.reload();
         };
         
         window.kickPlayer = async (pid) => {
@@ -519,6 +487,15 @@
             await updateDoc(doc(db, "rooms", roomId), { players: newP });
         };
 
+        function showError(msg) {
+            const banner = document.getElementById('errorBanner');
+            const text = document.getElementById('errorText');
+            if(banner && text) {
+                text.textContent = msg;
+                banner.classList.remove('hidden');
+                setTimeout(() => banner.classList.add('hidden'), 3000);
+            } else { alert(msg); }
+        }
     </script>
 </body>
 </html>
