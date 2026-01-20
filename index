@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>English Concentration Online</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Roboto:wght@400;700&display=swap');
+        body { font-family: 'Roboto', 'Noto Sans JP', sans-serif; background-color: #f0f4f8; user-select: none; }
+        .card-container { perspective: 1000px; aspect-ratio: 4 / 3; width: 100%; }
+        .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .card-container.flipped .card-inner, .card-container.matched .card-inner, .card-container.matched-visible .card-inner { transform: rotateY(180deg); }
+        .card-container.matched-visible .card-inner { box-shadow: 0 0 15px 5px rgba(34, 197, 94, 0.5); }
+        .card-front, .card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 0.75rem; padding: 1rem; }
+        .card-front { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-size: 2rem; }
+        .card-back { background-color: white; color: #1f2937; transform: rotateY(180deg); border: 3px solid #3b82f6; overflow: hidden; }
+        .card-text { font-size: clamp(0.8rem, 100%, 1.4rem); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+        .active-player { border-left: 6px solid #3b82f6; background-color: #eff6ff; transform: scale(1.02); }
+        .my-turn-alert { animation: pulse-border 2s infinite; border: 2px solid #ef4444; }
+        @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden bg-slate-50">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-sm border-b p-4 flex justify-between items-center z-10">
+        <div class="flex items-center gap-2">
+            <i data-lucide="globe" class="text-blue-600"></i>
+            <h1 class="font-bold text-gray-800">English Online</h1>
+        </div>
+        <div id="connectionStatus" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">Offline</div>
+    </nav>
+
+    <!-- MAIN APP CONTAINER -->
+    <main class="flex-1 relative overflow-hidden">
+        
+        <!-- SCENE 1: SETUP (LOGIN ONLY) -->
+        <div id="sceneSetup" class="absolute inset-0 bg-slate-100 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div class="bg-white max-w-md w-full rounded-xl shadow-xl p-8 space-y-6">
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold text-gray-800">Game Login</h2>
+                    <p class="text-gray-500 text-sm">Enter your name and room ID to join.</p>
+                </div>
+
+                <!-- Player Info -->
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
+                        <input type="text" id="playerName" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-200 outline-none" placeholder="Ex: Taro">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Room Name (ID)</label>
+                        <input type="text" id="roomName" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-200 outline-none" placeholder="Ex: class1-groupA">
+                        <p class="text-xs text-gray-400 mt-1">Share this Room Name with your friends.</p>
+                    </div>
+                </div>
+
+                <button onclick="initializeAndJoin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
+                    Start Game <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- SCENE 2: LOBBY (WAITING FOR PLAYERS) -->
+        <div id="sceneLobby" class="hidden absolute inset-0 bg-white z-40 flex flex-col items-center justify-center p-4">
+            <div class="max-w-2xl w-full text-center space-y-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">Room: <span id="lobbyRoomName" class="text-blue-600"></span></h2>
+                    <p class="text-gray-500">Waiting for players...</p>
+                </div>
+
+                <div id="lobbyPlayerList" class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <!-- Players injected here -->
+                </div>
+
+                <!-- Host Controls -->
+                <div id="hostControls" class="bg-gray-50 p-6 rounded-xl border border-gray-200 text-left hidden">
+                    <h3 class="font-bold mb-4 flex items-center gap-2">
+                        <i data-lucide="crown" class="text-yellow-500 w-5 h-5"></i> Host Settings
+                    </h3>
+                    <p class="text-xs text-gray-500 mb-2">Paste Excel data here (English [TAB] Japanese)</p>
+                    <textarea id="gameWordsInput" class="w-full h-32 border rounded p-2 text-sm font-mono mb-4 bg-white" placeholder="English [TAB] Japanese"></textarea>
+                    <button onclick="hostStartGame()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
+                        <i data-lucide="play" class="w-4 h-4"></i> Start Game
+                    </button>
+                </div>
+                
+                <div id="waitingMessage" class="text-gray-400 italic animate-pulse">Waiting for host to start...</div>
+            </div>
+        </div>
+
+        <!-- SCENE 3: GAME BOARD -->
+        <div id="sceneGame" class="hidden h-full flex flex-col md:flex-row">
+            <!-- Sidebar -->
+            <div class="w-full md:w-64 bg-white border-r p-4 flex flex-row md:flex-col gap-4 overflow-x-auto shadow-sm z-20">
+                <div class="shrink-0">
+                    <div class="text-xs font-bold text-gray-400 uppercase">Turn</div>
+                    <div id="gameTurnIndicator" class="text-xl font-bold text-blue-600 truncate p-2 rounded bg-blue-50">--</div>
+                </div>
+                <div class="flex-1">
+                    <div class="text-xs font-bold text-gray-400 uppercase mb-2">Scores</div>
+                    <div id="gameScoreBoard" class="grid grid-cols-2 md:grid-cols-1 gap-2"></div>
+                </div>
+            </div>
+
+            <!-- Grid -->
+            <div class="flex-1 bg-slate-100 p-4 overflow-y-auto">
+                <div id="gameGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 max-w-7xl mx-auto pb-20"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FIREBASE SDK (Modular) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        
+        // --- YOUR FIREBASE CONFIGURATION (Embedded) ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
+          authDomain: "concentration-2cb8a.firebaseapp.com",
+          projectId: "concentration-2cb8a",
+          storageBucket: "concentration-2cb8a.firebasestorage.app",
+          messagingSenderId: "1034581366776",
+          appId: "1:1034581366776:web:e46d84210c3eacba3ae80d",
+          measurementId: "G-D3GC22P1P5"
+        };
+
+        // GLOBAL VARIABLES
+        let db;
+        let currentRoomId = "";
+        let myPlayerId = "user_" + Math.random().toString(36).substr(2, 9);
+        let myName = "";
+        let isHost = false;
+        let unsubscribe = null;
+        let localState = null;
+
+        // --- DOM ELEMENTS ---
+        const scenes = {
+            setup: document.getElementById('sceneSetup'),
+            lobby: document.getElementById('sceneLobby'),
+            game: document.getElementById('sceneGame')
+        };
+        const defaultWords = `I want to visit Kyoto.\t私は京都を訪れたいです。
+Can you help me?\t私を手伝ってくれますか？
+This is the book I bought yesterday.\tこれは私が昨日買った本です。
+It is important to study English.\t英語を勉強することは大切です。`;
+
+        // --- 1. INITIALIZATION ---
+        window.initializeAndJoin = async () => {
+            myName = document.getElementById('playerName').value.trim();
+            currentRoomId = document.getElementById('roomName').value.trim();
+
+            if (!myName || !currentRoomId) {
+                alert("Please enter your Name and Room ID.");
+                return;
+            }
+
+            try {
+                // Initialize Firebase with embedded config
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+
+                // Save name for convenience
+                localStorage.setItem('nico_concentration_name', myName);
+                localStorage.setItem('nico_concentration_room', currentRoomId);
+
+                await joinRoomLogic();
+            } catch (e) {
+                console.error(e);
+                alert("Error initializing: " + e.message);
+            }
+        };
+
+        // Auto-load saved name
+        window.onload = () => {
+            const savedName = localStorage.getItem('nico_concentration_name');
+            const savedRoom = localStorage.getItem('nico_concentration_room');
+            if (savedName) document.getElementById('playerName').value = savedName;
+            if (savedRoom) document.getElementById('roomName').value = savedRoom;
+            document.getElementById('gameWordsInput').value = defaultWords;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        };
+
+        // --- 2. LOBBY LOGIC ---
+        async function joinRoomLogic() {
+            const roomRef = doc(db, "rooms", currentRoomId);
+            const snap = await getDoc(roomRef);
+
+            const playerData = { id: myPlayerId, name: myName, score: 0 };
+
+            if (!snap.exists()) {
+                // Create Room (Host)
+                isHost = true;
+                await setDoc(roomRef, {
+                    status: 'lobby',
+                    players: [playerData],
+                    hostId: myPlayerId,
+                    cards: [],
+                    turnIndex: 0,
+                    flippedIndices: [],
+                    lastUpdated: Date.now()
+                });
+            } else {
+                // Join Room
+                const data = snap.data();
+                if (data.status === 'playing') {
+                    // Allow re-join if same name (simple recovery)
+                    const existing = data.players.find(p => p.name === myName);
+                    if (!existing) {
+                        alert("Game already in progress!");
+                        return;
+                    }
+                    myPlayerId = existing.id;
+                } else {
+                    // Check duplicate
+                    const existing = data.players.find(p => p.name === myName);
+                    if (!existing) {
+                        await updateDoc(roomRef, {
+                            players: arrayUnion(playerData)
+                        });
+                    } else {
+                        myPlayerId = existing.id; 
+                    }
+                }
+            }
+
+            // Subscribe to updates
+            switchScene('lobby');
+            document.getElementById('lobbyRoomName').textContent = currentRoomId;
+            
+            unsubscribe = onSnapshot(roomRef, (docSnap) => {
+                if (!docSnap.exists()) return;
+                const data = docSnap.data();
+                localState = data;
+                renderLobby(data);
+                
+                if (data.status === 'playing') {
+                    switchScene('game');
+                    renderGame(data);
+                }
+            });
+        }
+
+        function renderLobby(data) {
+            const list = document.getElementById('lobbyPlayerList');
+            list.innerHTML = '';
+            data.players.forEach(p => {
+                const div = document.createElement('div');
+                div.className = "bg-gray-100 p-4 rounded-lg flex flex-col items-center justify-center animate-fade-in";
+                div.innerHTML = `
+                    <div class="bg-white p-3 rounded-full mb-2 shadow-sm">
+                        <i data-lucide="user" class="w-6 h-6 text-blue-500"></i>
+                    </div>
+                    <span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>
+                    ${p.id === data.hostId ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}
+                `;
+                list.appendChild(div);
+            });
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            // Host controls visibility
+            if (myPlayerId === data.hostId) {
+                document.getElementById('hostControls').classList.remove('hidden');
+                document.getElementById('waitingMessage').classList.add('hidden');
+            } else {
+                document.getElementById('hostControls').classList.add('hidden');
+                document.getElementById('waitingMessage').classList.remove('hidden');
+            }
+        }
+
+        // --- 3. GAME START LOGIC ---
+        window.hostStartGame = async () => {
+            const rawText = document.getElementById('gameWordsInput').value.trim();
+            const lines = rawText.split('\n');
+            let cards = [];
+            let pairId = 0;
+
+            lines.forEach((line) => {
+                let parts = line.split('\t');
+                if (parts.length < 2 && line.includes(',')) {
+                     const commaIndex = line.indexOf(',');
+                     if (commaIndex !== -1) parts = [line.substring(0, commaIndex), line.substring(commaIndex + 1)];
+                }
+                if (parts.length >= 2) {
+                    const en = parts[0].trim();
+                    const jp = parts[1].trim();
+                    if (en && jp) {
+                        cards.push({ id: 0, pairId: pairId, text: en, type: 'en', isFlipped: false, isMatched: false });
+                        cards.push({ id: 0, pairId: pairId, text: jp, type: 'jp', isFlipped: false, isMatched: false });
+                        pairId++;
+                    }
+                }
+            });
+
+            if (cards.length < 4) {
+                alert("Please add at least 2 pairs of words.");
+                return;
+            }
+
+            // Shuffle
+            for (let i = cards.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [cards[i], cards[j]] = [cards[j], cards[i]];
+            }
+            // Assign Index IDs
+            cards.forEach((c, i) => c.id = i);
+
+            // Update DB to Start
+            const roomRef = doc(db, "rooms", currentRoomId);
+            await updateDoc(roomRef, {
+                status: 'playing',
+                cards: cards,
+                turnIndex: 0,
+                flippedIndices: []
+            });
+        };
+
+        // --- 4. GAMEPLAY LOGIC ---
+        function renderGame(data) {
+            // Update Turn Indicator
+            const currentPlayer = data.players[data.turnIndex];
+            const indicator = document.getElementById('gameTurnIndicator');
+            indicator.textContent = currentPlayer.name;
+            
+            const isMyTurn = currentPlayer.id === myPlayerId;
+            if (isMyTurn) {
+                indicator.classList.add('bg-green-100', 'text-green-700', 'my-turn-alert');
+                indicator.textContent += " (YOU!)";
+            } else {
+                indicator.classList.remove('bg-green-100', 'text-green-700', 'my-turn-alert');
+            }
+
+            // Update Scores
+            const sb = document.getElementById('gameScoreBoard');
+            sb.innerHTML = '';
+            data.players.forEach((p, idx) => {
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-lg border flex justify-between items-center ${idx === data.turnIndex ? 'active-player' : 'bg-white'}`;
+                div.innerHTML = `
+                    <span class="text-sm font-bold truncate">${p.name}</span>
+                    <span class="text-xl font-bold">${p.score || 0}</span>
+                `;
+                sb.appendChild(div);
+            });
+
+            // Update Grid
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+            
+            data.cards.forEach((card, idx) => {
+                const container = document.createElement('div');
+                container.className = `card-container ${card.isFlipped ? 'flipped' : ''} ${card.isMatched ? 'matched-visible' : ''}`;
+                container.onclick = () => handleCardClick(idx);
+
+                const inner = document.createElement('div');
+                inner.className = 'card-inner bg-white';
+                
+                // Front (Number)
+                const front = document.createElement('div');
+                front.className = 'card-front';
+                front.innerHTML = `<span class="font-bold opacity-80">${idx + 1}</span>`;
+
+                // Back (Text)
+                const back = document.createElement('div');
+                back.className = 'card-back';
+                back.innerHTML = `<span class="card-text text-center">${card.text}</span>`;
+
+                inner.appendChild(front);
+                inner.appendChild(back);
+                container.appendChild(inner);
+                grid.appendChild(container);
+            });
+        }
+
+        window.handleCardClick = async (idx) => {
+            if (!localState) return;
+            const data = localState;
+
+            // Rules Checks
+            const currentPlayer = data.players[data.turnIndex];
+            if (currentPlayer.id !== myPlayerId) return; // Not my turn
+            if (data.flippedIndices.length >= 2) return; // Wait for processing
+            if (data.cards[idx].isFlipped || data.cards[idx].isMatched) return; // Already flipped/matched
+
+            // 1. Flip the card immediately in DB
+            const roomRef = doc(db, "rooms", currentRoomId);
+            
+            const newCards = [...data.cards];
+            newCards[idx].isFlipped = true;
+            const newFlipped = [...data.flippedIndices, idx];
+
+            await updateDoc(roomRef, {
+                cards: newCards,
+                flippedIndices: newFlipped
+            });
+
+            // 2. Check Logic if 2 cards
+            if (newFlipped.length === 2) {
+                // Wait briefly then process
+                setTimeout(async () => {
+                    await processMatch(roomRef, newCards, newFlipped, data);
+                }, 1500); 
+            }
+        };
+
+        async function processMatch(roomRef, currentCards, flippedIndices, data) {
+            const idx1 = flippedIndices[0];
+            const idx2 = flippedIndices[1];
+            const card1 = currentCards[idx1];
+            const card2 = currentCards[idx2];
+            
+            let updates = {};
+
+            if (card1.pairId === card2.pairId) {
+                // MATCH!
+                currentCards[idx1].isMatched = true;
+                currentCards[idx2].isMatched = true;
+                
+                // Update Score
+                const newPlayers = [...data.players];
+                newPlayers[data.turnIndex].score = (newPlayers[data.turnIndex].score || 0) + 1;
+                
+                updates = {
+                    cards: currentCards,
+                    players: newPlayers,
+                    flippedIndices: [] 
+                };
+            } else {
+                // NO MATCH
+                currentCards[idx1].isFlipped = false;
+                currentCards[idx2].isFlipped = false;
+                
+                const nextTurn = (data.turnIndex + 1) % data.players.length;
+                
+                updates = {
+                    cards: currentCards,
+                    turnIndex: nextTurn,
+                    flippedIndices: []
+                };
+            }
+
+            await updateDoc(roomRef, updates);
+        }
+
+        // --- UTILS ---
+        function switchScene(sceneName) {
+            Object.values(scenes).forEach(el => el.classList.add('hidden'));
+            scenes[sceneName].classList.remove('hidden');
+            
+            const statusDiv = document.getElementById('connectionStatus');
+            if(sceneName === 'setup') {
+                statusDiv.textContent = 'Offline';
+                statusDiv.className = 'text-xs px-2 py-1 rounded bg-gray-100 text-gray-500';
+            } else {
+                statusDiv.textContent = 'Online';
+                statusDiv.className = 'text-xs px-2 py-1 rounded bg-green-100 text-green-600 font-bold animate-pulse';
+            }
+        }
+    </script>
+</body>
+</html>
