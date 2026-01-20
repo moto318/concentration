@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Concentration Online v3</title>
+    <title>English Concentration Online v3.1 (Teacher Admin)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -27,7 +27,7 @@
     <nav class="bg-white shadow-sm border-b p-4 flex justify-between items-center z-10">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600"></i>
-            <h1 class="font-bold text-gray-800">English Online (v3)</h1>
+            <h1 class="font-bold text-gray-800">English Online (v3.1)</h1>
         </div>
         <div class="flex gap-2 items-center">
             <div id="hostNavControls" class="hidden flex gap-2">
@@ -59,7 +59,7 @@
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
-                        <input type="text" id="playerName" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-200 outline-none" placeholder="Ex: Taro">
+                        <input type="text" id="playerName" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-200 outline-none" placeholder="Ex: Mr. Motoyan">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Room Name (ID)</label>
@@ -71,7 +71,7 @@
                             <input type="checkbox" id="isTeacherMode" class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300">
                             <div>
                                 <span class="text-sm font-bold text-gray-800">I am the Teacher (Host)</span>
-                                <p class="text-xs text-gray-500">Access Management Dashboard</p>
+                                <p class="text-xs text-gray-500">Access Dashboard / Spectator Mode Only</p>
                             </div>
                         </label>
                     </div>
@@ -96,9 +96,8 @@
                             <p class="text-xs text-gray-500">Paste Excel data (English [TAB] Japanese)</p>
                             <textarea id="gameWordsInput" class="w-full h-40 border rounded p-2 text-sm font-mono bg-gray-50 focus:bg-white transition" placeholder="English [TAB] Japanese"></textarea>
                             
-                            <div class="flex items-center gap-2">
-                                <input type="checkbox" id="hostParticipates" class="w-4 h-4 text-blue-600 rounded">
-                                <label for="hostParticipates" class="text-sm text-gray-700">Participate in game (as player)</label>
+                            <div class="text-xs text-gray-400 italic">
+                                * You are in Teacher Mode (Admin only). You will not be dealt cards.
                             </div>
 
                             <button onclick="window.saveGameSettings()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
@@ -122,7 +121,7 @@
                                 <button onclick="window.goToGameView()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
                                     <i data-lucide="monitor" class="w-4 h-4"></i> Go to Game Room
                                 </button>
-                                <p class="text-xs text-gray-400 mt-2 text-center">You can watch or play from the Game Room.</p>
+                                <p class="text-xs text-gray-400 mt-2 text-center">Click to watch the game progress.</p>
                             </div>
                         </div>
                     </div>
@@ -240,6 +239,7 @@ It is important to study English.\t英語を勉強することは大切です。
             if (!confirm("⚠️ RESET ROOM (FORCE)?\n\nThis will KICK ALL players and reset everything.")) return;
             try {
                 const roomRef = doc(db, "rooms", currentRoomId);
+                // Host resets, immediately becomes spectator
                 const me = { id: myPlayerId, name: myName, score: 0, isSpectator: true };
                 await setDoc(roomRef, {
                     status: 'lobby',
@@ -252,7 +252,7 @@ It is important to study English.\t英語を勉強することは大切です。
                     lastUpdated: Date.now()
                 });
                 alert("Room Reset!");
-                if(isHostMode) window.switchScene('admin'); // Stay in admin
+                if(isHostMode) window.switchScene('admin'); 
             } catch(e) {
                 showError("Reset Error: " + e.message);
             }
@@ -288,12 +288,13 @@ It is important to study English.\t英語を勉強することは大切です。
                 cards.forEach((c, i) => c.id = i);
 
                 const roomRef = doc(db, "rooms", currentRoomId);
-                const hostParticipates = document.getElementById('hostParticipates').checked;
                 
                 const snap = await getDoc(roomRef);
                 const currentPlayers = snap.exists() ? snap.data().players : [];
+                
+                // FORCE SPECTATOR: If I am the one clicking save (Admin), I must be spectator.
                 const updatedPlayers = currentPlayers.map(p => {
-                    if (p.id === myPlayerId) return { ...p, isSpectator: !hostParticipates };
+                    if (p.id === myPlayerId) return { ...p, isSpectator: true };
                     return p;
                 });
 
@@ -310,17 +311,25 @@ It is important to study English.\t英語を勉強することは大切です。
         };
 
         window.goToGameView = () => {
-            window.switchScene('game'); // Just switch view, logic handles rendering
+            window.switchScene('game');
         };
 
         window.startGame = async () => {
             try {
                 const roomRef = doc(db, "rooms", currentRoomId);
-                let firstTurn = 0;
                 const players = localState.players;
+                
+                // Find first non-spectator player
+                let firstTurn = 0;
                 while(firstTurn < players.length && players[firstTurn].isSpectator) {
                     firstTurn++;
                 }
+
+                if (firstTurn >= players.length) {
+                    alert("Cannot start: No active players found (only spectators).");
+                    return;
+                }
+
                 await updateDoc(roomRef, {
                     status: 'playing',
                     turnIndex: firstTurn,
@@ -335,7 +344,11 @@ It is important to study English.\t英語を勉強することは大切です。
             if (!localState) return;
             const data = localState;
             const currentPlayer = data.players[data.turnIndex];
+            
+            // Security Check: Even if UI allowed it, prevent Host from clicking if it's somehow their turn
             if (currentPlayer.id !== myPlayerId) return; 
+            if (currentPlayer.isSpectator) return; // Spectators cannot click
+
             if (data.flippedIndices.length >= 2) return; 
             if (data.cards[idx].isFlipped || data.cards[idx].isMatched) return; 
             try {
@@ -357,6 +370,7 @@ It is important to study English.\t英語を勉強することは大切です。
             const roomRef = doc(db, "rooms", currentRoomId);
             const snap = await getDoc(roomRef);
             
+            // If I am Host Mode, I default to Spectator
             const playerData = { id: myPlayerId, name: myName, score: 0, isSpectator: isHostMode };
 
             if (!snap.exists()) {
@@ -378,8 +392,12 @@ It is important to study English.\t英語を勉強することは大切です。
                 if (isHostMode && data.hostId !== myPlayerId) updatePayload.hostId = myPlayerId;
 
                 if (existing) {
-                    if (existing.name !== myName) {
-                        const newPlayers = data.players.map(p => p.id === myPlayerId ? {...p, name: myName} : p);
+                    // Update name, ensure Spectator status if host
+                    let newIsSpectator = existing.isSpectator;
+                    if (isHostMode) newIsSpectator = true;
+
+                    if (existing.name !== myName || existing.isSpectator !== newIsSpectator) {
+                        const newPlayers = data.players.map(p => p.id === myPlayerId ? {...p, name: myName, isSpectator: newIsSpectator} : p);
                         updatePayload.players = newPlayers;
                     }
                 } else {
@@ -397,7 +415,6 @@ It is important to study English.\t英語を勉強することは大切です。
                 document.getElementById('lobbyRoomName').textContent = currentRoomId;
             }
 
-            // Update Nav Visibility
             const hostNav = document.getElementById('hostNavControls');
             if (isHostMode) hostNav.classList.remove('hidden');
             else hostNav.classList.add('hidden');
@@ -411,16 +428,13 @@ It is important to study English.\t英語を勉強することは大切です。
 
                 localState = data;
 
-                // If I am Admin, update the Admin UI list
                 if (isHostMode && !scenes.game.classList.contains('hidden') === false) {
                      renderAdminList(data);
                 }
                 
-                // If I am currently in Game or Lobby view, update those
                 if (!scenes.game.classList.contains('hidden')) renderGame(data);
                 if (!scenes.lobby.classList.contains('hidden')) renderLobby(data);
 
-                // Auto-switch for students
                 if (!isHostMode) {
                     if (data.status === 'playing') switchScene('game');
                     else switchScene('lobby');
@@ -445,6 +459,7 @@ It is important to study English.\t英語を勉強することは大切です。
                 currentCards[idx2].isFlipped = false;
                 let nextTurn = (data.turnIndex + 1) % data.players.length;
                 let loopCount = 0;
+                // Skip Spectators Logic
                 while(data.players[nextTurn].isSpectator && loopCount < data.players.length) {
                     nextTurn = (nextTurn + 1) % data.players.length;
                     loopCount++;
@@ -460,14 +475,15 @@ It is important to study English.\t英語を勉強することは大切です。
             if(!data.players.length) list.innerHTML = '<p class="text-gray-400 text-xs text-center py-4">No players.</p>';
             
             data.players.forEach(p => {
-                if (p.id === myPlayerId) return; // Hide self? Or show self differently.
+                const isMe = p.id === myPlayerId;
                 const div = document.createElement('div');
-                div.className = "flex justify-between items-center bg-white p-2 rounded shadow-sm";
+                div.className = `flex justify-between items-center bg-white p-2 rounded shadow-sm ${isMe ? 'border-blue-300 border' : ''}`;
                 div.innerHTML = `
                     <div class="flex items-center gap-2">
                          <i data-lucide="${p.isSpectator ? 'eye' : 'user'}" class="w-4 h-4 text-gray-500"></i>
-                         <span class="text-sm font-bold">${p.name}</span>
+                         <span class="text-sm font-bold">${p.name} ${isMe ? '(You)' : ''}</span>
                     </div>
+                    ${p.isSpectator ? '<span class="text-[10px] bg-gray-200 px-1 rounded text-gray-500">SPECTATOR</span>' : ''}
                 `;
                 list.appendChild(div);
             });
@@ -487,8 +503,8 @@ It is important to study English.\t英語を勉強することは大切です。
                         <i data-lucide="${isSpectator ? 'eye' : 'user'}" class="w-6 h-6 ${isSpectator ? 'text-gray-400' : 'text-blue-500'}"></i>
                     </div>
                     <span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>
-                    ${isHostUser ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}
-                    ${isSpectator ? '<span class="text-xs text-gray-500 mt-1">(Spectator)</span>' : ''}
+                    ${isHostUser ? '<span class="text-xs text-yellow-600 font-bold mt-1">TEACHER</span>' : ''}
+                    ${!isHostUser && isSpectator ? '<span class="text-xs text-gray-500 mt-1">(Spectator)</span>' : ''}
                 `;
                 list.appendChild(div);
             });
@@ -499,11 +515,19 @@ It is important to study English.\t英語を勉強することは大切です。
             const waitMsg = document.getElementById('waitingMessage');
 
             if (setupComplete) {
-                commonStart.classList.remove('hidden');
-                waitMsg.classList.add('hidden');
+                // Only Host can see Start Button
+                if(isHostMode) {
+                    commonStart.classList.remove('hidden');
+                    waitMsg.classList.add('hidden');
+                } else {
+                    commonStart.classList.add('hidden');
+                    waitMsg.classList.remove('hidden');
+                    waitMsg.textContent = "Waiting for Teacher to Start Game...";
+                }
             } else {
                 commonStart.classList.add('hidden');
                 waitMsg.classList.remove('hidden');
+                waitMsg.textContent = "Waiting for Teacher to Prepare Cards...";
             }
         }
 
