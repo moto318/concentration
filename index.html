@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Concentration Online v5.5 (Full Admin)</title>
+    <title>English Concentration Online v5.6 (Self Leave)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -13,15 +13,9 @@
         /* --- Card Styles --- */
         .card-container { perspective: 1000px; aspect-ratio: 4 / 3; width: 100%; }
         .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        
-        /* Flip Logic */
         .card-container.flipped .card-inner { transform: rotateY(180deg); }
-        
-        /* Matched Logic */
         .card-container.matched .card-inner { transform: rotateY(180deg); box-shadow: none; cursor: default; }
         .card-container.matched .card-back { background-color: #dcfce7; border: 2px solid #22c55e; color: #14532d; } 
-
-        /* Faces */
         .card-front, .card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 0.75rem; padding: 0.5rem; }
         .card-front { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-size: 1.5rem; font-weight: bold; }
         .card-back { background-color: white; color: #1f2937; transform: rotateY(180deg); border: 2px solid #3b82f6; overflow: hidden; }
@@ -29,12 +23,8 @@
         
         /* UI Elements */
         .active-player { border-left: 5px solid #3b82f6; background-color: #eff6ff; }
-        
-        /* Modal Transitions */
         .modal { transition: opacity 0.3s ease-in-out; opacity: 0; pointer-events: none; }
         .modal.open { opacity: 1; pointer-events: auto; }
-
-        /* Button Animations */
         @keyframes pulse-green { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
         .btn-success { background-color: #22c55e !important; animation: pulse-green 0.3s ease-in-out; }
     </style>
@@ -44,7 +34,7 @@
     <nav class="bg-white shadow border-b px-4 py-3 flex justify-between items-center z-50 relative">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600 w-6 h-6"></i>
-            <h1 class="font-bold text-lg tracking-tight">English Online <span class="text-xs font-normal text-gray-400">v5.5</span></h1>
+            <h1 class="font-bold text-lg tracking-tight">English Online <span class="text-xs font-normal text-gray-400">v5.6</span></h1>
         </div>
         <div class="flex items-center gap-3">
             <span id="roomBadge" class="hidden text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">Room: <span id="navRoomId">--</span></span>
@@ -60,7 +50,6 @@
     </div>
 
     <main class="flex-1 relative overflow-hidden bg-slate-50">
-
         <div id="sceneSetup" class="absolute inset-0 z-40 flex items-center justify-center p-4">
             <div class="bg-white max-w-sm w-full rounded-2xl shadow-xl p-8 space-y-6 text-center">
                 <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -88,9 +77,7 @@
                 <h2 class="text-3xl font-bold text-gray-800">Room: <span id="lobbyRoomName" class="text-blue-600 font-mono">--</span></h2>
                 <p class="text-gray-500 mt-2">Waiting for players...</p>
             </div>
-            
             <div id="lobbyPlayerList" class="flex flex-wrap justify-center gap-4 max-w-3xl w-full mb-8"></div>
-
             <div id="gameStartArea" class="hidden animate-bounce">
                  <button onclick="window.startGame()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold py-4 px-12 rounded-full shadow-lg flex items-center gap-3 transition">
                     <i data-lucide="play-circle" class="w-8 h-8"></i> SHUFFLE & START!
@@ -110,7 +97,6 @@
                 </div>
                 <div class="flex-1 p-2 space-y-2 overflow-y-auto" id="scoreBoard"></div>
             </div>
-
             <div class="flex-1 bg-slate-100 p-2 md:p-6 overflow-y-auto">
                 <div id="gameGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4 max-w-6xl mx-auto pb-20"></div>
             </div>
@@ -120,14 +106,10 @@
     <div id="settingsModal" class="modal fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             <div class="p-4 border-b flex justify-between items-center bg-gray-50">
-                <h3 class="font-bold text-lg flex items-center gap-2">
-                    <i data-lucide="settings-2" class="text-gray-600"></i> Game Settings
-                </h3>
+                <h3 class="font-bold text-lg flex items-center gap-2"><i data-lucide="settings-2" class="text-gray-600"></i> Game Settings</h3>
                 <button onclick="window.toggleSettings()" class="p-1 hover:bg-gray-200 rounded-full transition"><i data-lucide="x" class="w-5 h-5 text-gray-500"></i></button>
             </div>
-
             <div class="p-6 overflow-y-auto space-y-8">
-                
                 <section>
                     <h4 class="font-bold text-gray-700 mb-2 border-l-4 border-blue-500 pl-2">1. Create Cards</h4>
                     <p class="text-xs text-gray-500 mb-2">Paste Excel columns (English [TAB] Japanese)</p>
@@ -136,7 +118,6 @@
                         <i data-lucide="save" class="w-4 h-4"></i> Generate Cards & Sync
                     </button>
                 </section>
-
                 <section class="pt-4 border-t">
                     <h4 class="font-bold text-gray-700 mb-2 border-l-4 border-red-500 pl-2">2. Danger Zone</h4>
                     <div class="grid grid-cols-2 gap-4">
@@ -148,7 +129,6 @@
                         </button>
                     </div>
                 </section>
-                
                 <section class="pt-4 border-t">
                      <h4 class="font-bold text-gray-700 mb-2 border-l-4 border-gray-500 pl-2">3. Player Management</h4>
                      <div id="adminPlayerList" class="bg-gray-100 rounded p-2 text-sm max-h-32 overflow-y-auto"></div>
@@ -174,7 +154,6 @@
         let app, db;
         try { app = initializeApp(firebaseConfig); db = getFirestore(app); } catch(e) { console.error(e); }
 
-        // --- STATE ---
         let myId = localStorage.getItem('nico_player_id') || `p_${Math.random().toString(36).substr(2,9)}`;
         localStorage.setItem('nico_player_id', myId);
         let myName = "";
@@ -183,28 +162,15 @@
         let unsubscribe = null;
         let hasCheckedSetup = false; 
 
-        // --- DOM ELEMENTS ---
-        const scenes = {
-            setup: document.getElementById('sceneSetup'),
-            lobby: document.getElementById('sceneLobby'),
-            game: document.getElementById('sceneGame')
-        };
+        const scenes = { setup: document.getElementById('sceneSetup'), lobby: document.getElementById('sceneLobby'), game: document.getElementById('sceneGame') };
         const els = {
-            navRoom: document.getElementById('navRoomId'),
-            roomBadge: document.getElementById('roomBadge'),
-            modal: document.getElementById('settingsModal'),
-            lobbyRoom: document.getElementById('lobbyRoomName'),
-            lobbyList: document.getElementById('lobbyPlayerList'),
-            startBtn: document.getElementById('gameStartArea'),
-            waitText: document.getElementById('waitingText'),
-            grid: document.getElementById('gameGrid'),
-            turnInd: document.getElementById('turnIndicator'),
-            turnBadge: document.getElementById('turnBadge'),
-            scoreBoard: document.getElementById('scoreBoard'),
-            adminList: document.getElementById('adminPlayerList'),
-            btnGenerate: document.getElementById('btnGenerate'),
-            toast: document.getElementById('toastBanner'),
-            toastText: document.getElementById('toastText')
+            navRoom: document.getElementById('navRoomId'), roomBadge: document.getElementById('roomBadge'),
+            modal: document.getElementById('settingsModal'), lobbyRoom: document.getElementById('lobbyRoomName'),
+            lobbyList: document.getElementById('lobbyPlayerList'), startBtn: document.getElementById('gameStartArea'),
+            waitText: document.getElementById('waitingText'), grid: document.getElementById('gameGrid'),
+            turnInd: document.getElementById('turnIndicator'), turnBadge: document.getElementById('turnBadge'),
+            scoreBoard: document.getElementById('scoreBoard'), adminList: document.getElementById('adminPlayerList'),
+            btnGenerate: document.getElementById('btnGenerate'), toast: document.getElementById('toastBanner'), toastText: document.getElementById('toastText')
         };
 
         window.onload = () => {
@@ -215,7 +181,6 @@
             if(localStorage.getItem('nico_room')) document.getElementById('roomName').value = localStorage.getItem('nico_room');
         };
 
-        // --- CORE FUNCTIONS ---
         window.startApp = async () => {
             const nameIn = document.getElementById('playerName').value.trim();
             const roomIn = document.getElementById('roomName').value.trim();
@@ -236,14 +201,7 @@
                 const me = { id: myId, name: myName, score: 0 };
                 
                 if (!snap.exists()) {
-                    await setDoc(roomRef, {
-                        status: 'lobby',
-                        players: [me],
-                        cards: [],
-                        flipped: [],
-                        turn: 0,
-                        updated: Date.now()
-                    });
+                    await setDoc(roomRef, { status: 'lobby', players: [me], cards: [], flipped: [], turn: 0, updated: Date.now() });
                 } else {
                     const data = snap.data();
                     const pList = data.players || [];
@@ -262,6 +220,15 @@
                     if(!docSnap.exists()) { showToast("Room deleted."); location.reload(); return; }
                     const data = docSnap.data();
                     currentData = data;
+
+                    // ★ Check if I have been kicked (or left)
+                    const amIInList = data.players.find(p => p.id === myId);
+                    if (!amIInList && currentData) {
+                        alert("You have left the room.");
+                        location.reload();
+                        return;
+                    }
+
                     render(data);
 
                     if (!hasCheckedSetup) {
@@ -275,7 +242,6 @@
             } catch (e) { showToast("Error: " + e.message); }
         }
 
-        // --- RENDERING ---
         function render(data) {
             Object.values(scenes).forEach(s => s.classList.add('hidden'));
             if(data.status === 'lobby') scenes.lobby.classList.remove('hidden');
@@ -283,17 +249,16 @@
             
             els.lobbyRoom.textContent = roomId;
             
-            // LOBBY RENDER (With Kick)
+            // ★ LOBBY RENDER (With Exit/Kick Button)
             els.lobbyList.innerHTML = data.players.map(p => {
                 const isMe = p.id === myId;
-                const kickBtn = isMe ? '' : `
-                    <button onclick="event.stopPropagation(); window.kickPlayer('${p.id}')" class="absolute top-1 right-1 text-gray-300 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition" title="Kick Player">
-                        <i data-lucide="x-circle" class="w-4 h-4"></i>
-                    </button>
-                `;
+                const icon = isMe ? 'log-out' : 'x-circle';
+                const color = isMe ? 'text-gray-400 hover:text-blue-500' : 'text-gray-300 hover:text-red-500';
                 return `
                     <div class="bg-white p-3 rounded-lg shadow-sm w-32 flex flex-col items-center relative group">
-                        ${kickBtn}
+                        <button onclick="event.stopPropagation(); window.kickPlayer('${p.id}')" class="absolute top-1 right-1 ${color} p-1 rounded-full hover:bg-gray-100 transition">
+                            <i data-lucide="${icon}" class="w-4 h-4"></i>
+                        </button>
                         <div class="bg-blue-100 p-2 rounded-full mb-1"><i data-lucide="user" class="w-5 h-5 text-blue-600"></i></div>
                         <span class="font-bold text-sm truncate w-full text-center">${p.name}</span>
                     </div>
@@ -314,8 +279,10 @@
             // Admin List
             els.adminList.innerHTML = data.players.map(p => `
                 <div class="flex justify-between items-center bg-white p-2 mb-1 rounded border">
-                    <span>${p.name}</span>
-                    <button onclick="window.kickPlayer('${p.id}')" class="text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded border border-red-200">Kick</button>
+                    <span>${p.name} ${p.id===myId ? '(You)' : ''}</span>
+                    <button onclick="window.kickPlayer('${p.id}')" class="text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded border border-red-200">
+                        ${p.id===myId ? 'Leave' : 'Kick'}
+                    </button>
                 </div>
             `).join('');
             lucide.createIcons();
@@ -335,18 +302,18 @@
                 }
             }
 
-            // GAME SCOREBOARD RENDER (With Kick)
+            // ★ SCOREBOARD RENDER (With Exit/Kick)
             els.scoreBoard.innerHTML = data.players.map((p, idx) => {
                 const isMe = p.id === myId;
-                const kickBtn = isMe ? '' : `
-                    <button onclick="event.stopPropagation(); window.kickPlayer('${p.id}')" class="text-gray-300 hover:text-red-500 mr-1" title="Kick">
-                        <i data-lucide="x-circle" class="w-4 h-4"></i>
-                    </button>
-                `;
+                const icon = isMe ? 'log-out' : 'x-circle';
+                const color = isMe ? 'text-gray-400 hover:text-blue-500' : 'text-gray-300 hover:text-red-500';
+                
                 return `
-                <div class="flex justify-between items-center p-2 rounded ${idx === data.turn ? 'active-player' : 'bg-white border'}">
-                    <div class="flex items-center overflow-hidden">
-                        ${kickBtn}
+                <div class="flex justify-between items-center p-2 rounded ${idx === data.turn ? 'active-player' : 'bg-white border'} group">
+                    <div class="flex items-center overflow-hidden gap-1">
+                        <button onclick="event.stopPropagation(); window.kickPlayer('${p.id}')" class="${color} p-0.5 rounded opacity-50 group-hover:opacity-100 transition">
+                            <i data-lucide="${icon}" class="w-3 h-3"></i>
+                        </button>
                         <span class="text-sm font-bold truncate">${p.name}</span>
                     </div>
                     <span class="font-mono text-lg font-bold text-blue-600">${p.score}</span>
@@ -369,12 +336,10 @@
             });
         }
 
-        // --- GAME LOGIC ---
         window.handleCardClick = async (idx) => {
             if(!currentData) return;
             const d = currentData;
             const currentPlayer = d.players[d.turn];
-
             if (!currentPlayer) { showToast("Data Sync Error. Reset Game."); return; }
             const isSoloPlay = d.players.length === 1;
             if (!isSoloPlay && currentPlayer.id !== myId) { showToast(`It is ${currentPlayer.name}'s turn!`); return; }
@@ -385,16 +350,9 @@
                 const newCards = [...d.cards];
                 newCards[idx].flipped = true;
                 const newFlipped = [...d.flipped, idx];
-                
-                await updateDoc(doc(db, "rooms", roomId), {
-                    cards: newCards,
-                    flipped: newFlipped
-                });
-
+                await updateDoc(doc(db, "rooms", roomId), { cards: newCards, flipped: newFlipped });
                 if(newFlipped.length === 2) {
-                    setTimeout(async () => {
-                        await checkMatch(newCards, newFlipped, d);
-                    }, 1500);
+                    setTimeout(async () => { await checkMatch(newCards, newFlipped, d); }, 1500);
                 }
             } catch (e) { showToast("Error: " + e.message); }
         };
@@ -404,29 +362,18 @@
             const idx2 = flippedIndices[1];
             const c1 = currentCards[idx1];
             const c2 = currentCards[idx2];
-            
             let nextTurn = d.turn;
             let newPlayers = [...d.players];
-
             if(c1.pairId === c2.pairId) {
-                c1.matched = true;
-                c2.matched = true;
+                c1.matched = true; c2.matched = true;
                 newPlayers[d.turn].score = (newPlayers[d.turn].score || 0) + 1;
             } else {
-                c1.flipped = false;
-                c2.flipped = false;
+                c1.flipped = false; c2.flipped = false;
                 nextTurn = (d.turn + 1) % d.players.length;
             }
-
-            await updateDoc(doc(db, "rooms", roomId), {
-                cards: currentCards,
-                players: newPlayers,
-                flipped: [],
-                turn: nextTurn
-            });
+            await updateDoc(doc(db, "rooms", roomId), { cards: currentCards, players: newPlayers, flipped: [], turn: nextTurn });
         }
 
-        // --- ADMIN / SETTINGS ACTIONS ---
         window.toggleSettings = () => {
             const m = els.modal;
             if(m.classList.contains('open')) m.classList.remove('open');
@@ -436,16 +383,13 @@
         window.updateCards = async () => {
             const raw = document.getElementById('wordListInput').value;
             localStorage.setItem('nico_last_words', raw);
-            
             const btn = els.btnGenerate;
             const originalText = btn.innerHTML;
             btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Success!`;
             btn.classList.add('btn-success');
-
             const lines = raw.split('\n');
             let deck = [];
             let pairCount = 0;
-
             lines.forEach(line => {
                 let parts = line.split('\t');
                 if(parts.length < 2 && line.includes(',')) parts = line.split(',');
@@ -459,31 +403,19 @@
                     }
                 }
             });
-
             if(deck.length < 4) { 
                 showToast("Please provide at least 2 pairs."); 
-                btn.innerHTML = originalText;
-                btn.classList.remove('btn-success');
-                return; 
+                btn.innerHTML = originalText; btn.classList.remove('btn-success'); return; 
             }
-
             for (let i = deck.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [deck[i], deck[j]] = [deck[j], deck[i]];
             }
-
-            await updateDoc(doc(db, "rooms", roomId), {
-                cards: deck,
-                flipped: [],
-                status: 'lobby',
-                turn: 0
-            });
-            
+            await updateDoc(doc(db, "rooms", roomId), { cards: deck, flipped: [], status: 'lobby', turn: 0 });
             if(currentData) {
                 const resetPlayers = currentData.players.map(p => ({...p, score: 0}));
                 await updateDoc(doc(db, "rooms", roomId), { players: resetPlayers });
             }
-            
             setTimeout(() => {
                 btn.innerHTML = originalText;
                 btn.classList.remove('btn-success');
@@ -493,58 +425,45 @@
 
         window.startGame = async () => {
             if(!currentData || !currentData.players) return;
-            
             let players = [...currentData.players];
             for (let i = players.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [players[i], players[j]] = [players[j], players[i]];
             }
-
             showToast("Shuffling players...");
-
-            await updateDoc(doc(db, "rooms", roomId), {
-                status: 'playing',
-                players: players,
-                turn: 0
-            });
+            await updateDoc(doc(db, "rooms", roomId), { status: 'playing', players: players, turn: 0 });
         };
 
         window.resetGame = async () => {
             if(!confirm("Restart game? (Shuffle players & cards)")) return;
-            
             let deck = [...currentData.cards];
             deck.forEach(c => { c.flipped = false; c.matched = false; });
             for (let i = deck.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [deck[i], deck[j]] = [deck[j], deck[i]];
             }
-
             let players = currentData.players.map(p => ({...p, score: 0}));
             for (let i = players.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [players[i], players[j]] = [players[j], players[i]];
             }
-
-            await updateDoc(doc(db, "rooms", roomId), {
-                status: 'playing',
-                cards: deck,
-                players: players,
-                flipped: [],
-                turn: 0
-            });
+            await updateDoc(doc(db, "rooms", roomId), { status: 'playing', cards: deck, players: players, flipped: [], turn: 0 });
             window.toggleSettings();
         };
 
         window.destroyRoom = async () => {
             if(!confirm("⚠️ DANGER: Delete room?")) return;
             await deleteDoc(doc(db, "rooms", roomId)); 
-            location.reload();
         };
         
         window.kickPlayer = async (pid) => {
-            if(!confirm("Kick this player?")) return;
+            const isMe = pid === myId;
+            const msg = isMe ? "Leave the room?" : "Kick this player?";
+            if(!confirm(msg)) return;
+            
             const newP = currentData.players.filter(p => p.id !== pid);
             await updateDoc(doc(db, "rooms", roomId), { players: newP });
+            // If I removed myself, the snapshot listener will detect it and reload.
         };
 
         function showToast(msg) {
