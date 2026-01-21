@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>English Concentration v7.4 (Fixed Auth)</title>
+    <title>English Concentration v7.6 (Env Fix)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Icons -->
@@ -93,6 +93,10 @@
         /* Dropdown Menu */
         .dropdown-menu { transform-origin: top right; transition: all 0.2s ease-out; transform: scale(0.95); opacity: 0; pointer-events: none; }
         .dropdown-menu.open { transform: scale(1); opacity: 1; pointer-events: auto; }
+        
+        /* Room Switcher Chips */
+        .room-chip { transition: all 0.2s; }
+        .room-chip.active { background-color: #2563eb; color: white; border-color: #2563eb; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3); }
     </style>
 </head>
 <body class="h-[100dvh] flex flex-col text-slate-800 overflow-hidden">
@@ -105,7 +109,7 @@
             </div>
             <div>
                 <h1 class="font-bold text-lg leading-none tracking-tight text-slate-800">English Match</h1>
-                <p class="text-[10px] text-slate-400 font-mono leading-none mt-0.5">Stable Edition v7.4</p>
+                <p class="text-[10px] text-slate-400 font-mono leading-none mt-0.5">Stable Edition v7.6</p>
             </div>
         </div>
         
@@ -383,9 +387,31 @@
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // --- CONFIG ---
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // --- CONFIG & AUTH ---
+        let firebaseConfig;
+        let appId = 'default-room';
+        let isEnvAuth = false;
+
+        try {
+            if(typeof __firebase_config !== 'undefined') {
+                firebaseConfig = JSON.parse(__firebase_config);
+                if(typeof __app_id !== 'undefined') appId = __app_id;
+                isEnvAuth = true;
+            } else {
+                throw new Error("No env config");
+            }
+        } catch(e) {
+            // Fallback Config (Only used if not in environment)
+            firebaseConfig = {
+                apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
+                authDomain: "concentration-2cb8a.firebaseapp.com",
+                projectId: "concentration-2cb8a",
+                storageBucket: "concentration-2cb8a.firebasestorage.app",
+                messagingSenderId: "1034581366776",
+                appId: "1:1034581366776:web:e46d84210c3eacba3ae80d",
+                measurementId: "G-D3GC22P1P5"
+            };
+        }
 
         const PRESETS = {
             colors: "Red 赤\nBlue 青\nGreen 緑\nYellow 黄色\nBlack 黒\nWhite 白\nPurple 紫\nPink ピンク",
@@ -428,46 +454,63 @@
         const GROUP_LABELS = ['A','B','C','D','E','F','G','H'];
 
         // --- FIRESTORE HELPERS ---
-        const getRoomDoc = (roomId) => doc(appState.db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+        // Switch path based on environment to satisfy rules
+        const getRoomDoc = (roomId) => {
+            if (isEnvAuth) {
+                return doc(appState.db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            } else {
+                return doc(appState.db, 'rooms', roomId);
+            }
+        };
 
         window.app = {
             init: async () => {
-                const fApp = initializeApp(firebaseConfig);
-                const auth = getAuth(fApp);
-                appState.db = getFirestore(fApp);
-
-                // Auth
                 try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
+                    const fApp = initializeApp(firebaseConfig);
+                    const auth = getAuth(fApp);
+                    appState.db = getFirestore(fApp);
+
+                    // Auth Logic
+                    if (isEnvAuth && typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        try {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } catch(e) {
+                            console.warn("Custom token failed:", e);
+                            // Do NOT fall back to anon if env auth is strictly required and anon is off
+                            // But for robustness in hybrid:
+                            // await signInAnonymously(auth); 
+                        }
                     } else {
-                        await signInAnonymously(auth);
+                        // Fallback/Local
+                        try {
+                            await signInAnonymously(auth);
+                        } catch(e) {
+                            console.error("Anon auth failed (likely restricted):", e);
+                        }
                     }
+
+                    appState.me.id = localStorage.getItem('nico_pid') || 'p_' + Math.random().toString(36).substr(2, 9);
+                    localStorage.setItem('nico_pid', appState.me.id);
+                    
+                    const savedName = localStorage.getItem('nico_name');
+                    if(savedName) document.getElementById('inpName').value = savedName;
+                    
+                    const sr = localStorage.getItem('nico_saved_rooms');
+                    if(sr) appState.savedRooms = JSON.parse(sr);
+
+                    document.addEventListener('click', (e) => {
+                        const dropdown = document.getElementById('roomDropdown');
+                        const btn = document.getElementById('roomMenuBtn');
+                        if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+                            dropdown.classList.remove('open');
+                        }
+                    });
+
+                    lucide.createIcons();
                 } catch(e) {
-                    console.error("Auth error", e);
-                    window.app.toast("Authentication Error", "alert-circle");
+                    console.error("Init Error:", e);
+                    alert("System Init Error: " + e.message);
                 }
-
-                appState.me.id = localStorage.getItem('nico_pid') || 'p_' + Math.random().toString(36).substr(2, 9);
-                localStorage.setItem('nico_pid', appState.me.id);
-                
-                const savedName = localStorage.getItem('nico_name');
-                if(savedName) document.getElementById('inpName').value = savedName;
-                
-                // Load saved rooms
-                const sr = localStorage.getItem('nico_saved_rooms');
-                if(sr) appState.savedRooms = JSON.parse(sr);
-
-                // Close dropdown on outside click
-                document.addEventListener('click', (e) => {
-                    const dropdown = document.getElementById('roomDropdown');
-                    const btn = document.getElementById('roomMenuBtn');
-                    if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
-                        dropdown.classList.remove('open');
-                    }
-                });
-
-                lucide.createIcons();
             },
 
             setMode: (mode) => {
@@ -540,7 +583,7 @@
                     }
                 } catch (e) {
                     console.error(e);
-                    alert("入室できませんでした。通信環境を確認するか、ページを再読み込みしてください。\nError: " + e.message);
+                    alert("入室できませんでした。\nError: " + e.message);
                 }
             },
 
@@ -561,7 +604,6 @@
                 if (menu.classList.contains('open')) {
                     menu.classList.remove('open');
                 } else {
-                    // Refresh List
                     const listEl = document.getElementById('dropdownRoomList');
                     listEl.innerHTML = appState.savedRooms.map(r => `
                         <button onclick="app.switchRoom('${r}')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-slate-100 flex items-center justify-between group ${r === appState.room.id ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600'}">
@@ -576,24 +618,17 @@
 
             switchRoom: async (roomId) => {
                 if(roomId === appState.room.id) return;
-                
                 document.getElementById('roomDropdown').classList.remove('open');
-                
-                // Close settings if open
                 document.getElementById('settingsModal').classList.remove('open');
-
                 document.getElementById('sceneGame').classList.add('hidden');
                 document.getElementById('sceneLobby').classList.remove('hidden');
                 document.getElementById('gameGrid').innerHTML = '';
                 
                 await window.app.connectToRoom(roomId);
-                
-                // Update QR
                 const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
                 document.getElementById('shareUrl').textContent = url;
                 document.getElementById('qrcode').innerHTML = ""; 
                 new QRCode(document.getElementById("qrcode"), { text: url, width: 64, height: 64 });
-
                 window.app.toast(`Switched to Room ${roomId}`, "arrow-right");
             },
 
