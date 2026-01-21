@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Concentration Online v5.2 (Full Shuffle)</title>
+    <title>English Concentration Online v5.4 (Smart Setup)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
@@ -44,7 +44,7 @@
     <nav class="bg-white shadow border-b px-4 py-3 flex justify-between items-center z-50 relative">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600 w-6 h-6"></i>
-            <h1 class="font-bold text-lg tracking-tight">English Online <span class="text-xs font-normal text-gray-400">v5.2</span></h1>
+            <h1 class="font-bold text-lg tracking-tight">English Online <span class="text-xs font-normal text-gray-400">v5.4</span></h1>
         </div>
         <div class="flex items-center gap-3">
             <span id="roomBadge" class="hidden text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">Room: <span id="navRoomId">--</span></span>
@@ -181,7 +181,7 @@
         let roomId = "";
         let currentData = null;
         let unsubscribe = null;
-        let hasAutoOpenedSettings = false; 
+        let hasCheckedSetup = false; // ★ UPDATED FLAG
 
         // --- DOM ELEMENTS ---
         const scenes = {
@@ -264,10 +264,14 @@
                     currentData = data;
                     render(data);
 
-                    if (!hasAutoOpenedSettings && (!data.cards || data.cards.length === 0)) {
-                        hasAutoOpenedSettings = true;
-                        window.toggleSettings(); 
-                        showToast("Please Create Cards!");
+                    // ★ SMART SETUP CHECK (Runs ONLY ONCE per session)
+                    if (!hasCheckedSetup) {
+                        hasCheckedSetup = true; // Mark done immediately
+                        // If cards are EMPTY, open settings.
+                        if (!data.cards || data.cards.length === 0) {
+                            if(!els.modal.classList.contains('open')) window.toggleSettings();
+                            showToast("Settings Opened: Please Create Cards!");
+                        }
                     }
                 });
             } catch (e) { showToast("Error: " + e.message); }
@@ -280,12 +284,23 @@
             else if(data.status === 'playing') scenes.game.classList.remove('hidden');
             
             els.lobbyRoom.textContent = roomId;
-            els.lobbyList.innerHTML = data.players.map(p => `
-                <div class="bg-white p-3 rounded-lg shadow-sm w-32 flex flex-col items-center">
-                    <div class="bg-blue-100 p-2 rounded-full mb-1"><i data-lucide="user" class="w-5 h-5 text-blue-600"></i></div>
-                    <span class="font-bold text-sm truncate w-full text-center">${p.name}</span>
-                </div>
-            `).join('');
+            
+            // LOBBY RENDER (With Kick)
+            els.lobbyList.innerHTML = data.players.map(p => {
+                const isMe = p.id === myId;
+                const kickBtn = isMe ? '' : `
+                    <button onclick="event.stopPropagation(); window.kickPlayer('${p.id}')" class="absolute top-1 right-1 text-gray-300 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition" title="Kick Player">
+                        <i data-lucide="x-circle" class="w-4 h-4"></i>
+                    </button>
+                `;
+                return `
+                    <div class="bg-white p-3 rounded-lg shadow-sm w-32 flex flex-col items-center relative group">
+                        ${kickBtn}
+                        <div class="bg-blue-100 p-2 rounded-full mb-1"><i data-lucide="user" class="w-5 h-5 text-blue-600"></i></div>
+                        <span class="font-bold text-sm truncate w-full text-center">${p.name}</span>
+                    </div>
+                `;
+            }).join('');
             
             if(data.cards && data.cards.length > 0) {
                 els.startBtn.classList.remove('hidden');
@@ -298,6 +313,7 @@
 
             if(data.status === 'playing') renderGame(data);
 
+            // Admin List
             els.adminList.innerHTML = data.players.map(p => `
                 <div class="flex justify-between items-center bg-white p-2 mb-1 rounded border">
                     <span>${p.name}</span>
@@ -484,11 +500,10 @@
             });
         };
 
-        // ★ UPDATED: RESTART LOGIC (NOW SHUFFLES PLAYERS)
+        // RESTART LOGIC (SHUFFLES PLAYERS)
         window.resetGame = async () => {
             if(!confirm("Restart game? (Shuffle players & cards)")) return;
             
-            // 1. Shuffle Cards
             let deck = [...currentData.cards];
             deck.forEach(c => { c.flipped = false; c.matched = false; });
             for (let i = deck.length - 1; i > 0; i--) {
@@ -496,7 +511,6 @@
                 [deck[i], deck[j]] = [deck[j], deck[i]];
             }
 
-            // 2. Shuffle Players
             let players = currentData.players.map(p => ({...p, score: 0}));
             for (let i = players.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
