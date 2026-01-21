@@ -1,1 +1,946 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>English Concentration v8.0 (Fixed)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Roboto:wght@400;700;900&display=swap');
+        
+        body { 
+            font-family: 'Roboto', 'Noto Sans JP', sans-serif; 
+            background-color: #f0f9ff; 
+            overscroll-behavior: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
 
+        /* 3D Card Flip Animation */
+        .card-container { perspective: 1000px; aspect-ratio: 3 / 4; width: 100%; position: relative; }
+        .card-inner { 
+            position: relative; width: 100%; height: 100%; text-align: center; 
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            transform-style: preserve-3d; cursor: pointer; 
+            border-radius: 0.75rem; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+        }
+        .card-container.flipped .card-inner { transform: rotateY(180deg); }
+        .card-container.matched .card-inner { transform: rotateY(180deg) scale(0.95); box-shadow: none; opacity: 0.8; cursor: default; }
+        
+        /* Faces */
+        .card-front, .card-back { 
+            position: absolute; width: 100%; height: 100%; 
+            -webkit-backface-visibility: hidden; backface-visibility: hidden; 
+            display: flex; align-items: center; justify-content: center; 
+            border-radius: 0.75rem; padding: 0.25rem; 
+            border: 2px solid transparent;
+        }
+        
+        /* Card Design */
+        .card-front { 
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); 
+            color: white; font-weight: 900; font-size: 1.5rem; 
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+        .card-back { 
+            background-color: white; 
+            color: #1e293b; 
+            transform: rotateY(180deg); 
+            border-color: #cbd5e1;
+        }
+        .card-container.matched .card-back { 
+            background-color: #dcfce7; border-color: #22c55e; color: #15803d; 
+        }
+
+        /* Text Fit Logic */
+        .fit-text {
+            word-break: break-word;
+            line-height: 1.2;
+            font-weight: 700;
+        }
+
+        /* UI Utilities */
+        .modal { transition: opacity 0.2s ease; opacity: 0; pointer-events: none; }
+        .modal.open { opacity: 1; pointer-events: auto; }
+        
+        /* Dropdown Menu */
+        .dropdown-menu { transform-origin: top right; transition: all 0.2s ease-out; transform: scale(0.95); opacity: 0; pointer-events: none; }
+        .dropdown-menu.open { transform: scale(1); opacity: 1; pointer-events: auto; }
+
+        /* Group Colors */
+        .bg-g-0 { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .bg-g-1 { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        .bg-g-2 { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .bg-g-3 { background: #fef9c3; color: #854d0e; border: 1px solid #fde047; }
+        .bg-g-4 { background: #f3e8ff; color: #6b21a8; border: 1px solid #e9d5ff; }
+        .bg-g-5 { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+        .bg-g-6 { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+        .bg-g-7 { background: #fce7f3; color: #9d174d; border: 1px solid #fbcfe8; }
+        
+        @keyframes pulse-turn { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+        .my-turn-ring { animation: pulse-turn 1.5s infinite; border: 2px solid #3b82f6; }
+    </style>
+</head>
+<body class="h-[100dvh] flex flex-col text-slate-800 overflow-hidden">
+
+    <nav class="bg-white border-b px-4 py-3 flex justify-between items-center z-50 shadow-sm shrink-0 h-16 relative">
+        <div class="flex items-center gap-2">
+            <div class="bg-blue-600 p-1.5 rounded-lg text-white">
+                <i data-lucide="users" class="w-5 h-5"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-none tracking-tight text-slate-800">English Match</h1>
+                <p class="text-[10px] text-slate-400 font-mono leading-none mt-0.5">Reborn Edition v8.1</p>
+            </div>
+        </div>
+        
+        <div id="navControls" class="hidden flex items-center gap-2 relative">
+            <button id="roomMenuBtn" onclick="app.toggleRoomMenu()" class="flex flex-col items-end mr-1 px-2 py-1 rounded hover:bg-slate-100 transition group relative">
+                <span class="text-[10px] uppercase text-slate-400 font-bold flex items-center gap-1">
+                    Room ID <i data-lucide="chevron-down" class="w-3 h-3 text-slate-400 group-hover:text-blue-500"></i>
+                </span>
+                <span id="navRoomId" class="text-xl font-black font-mono leading-none text-blue-600 tracking-wider">--</span>
+            </button>
+
+            <div id="roomDropdown" class="dropdown-menu absolute top-full right-12 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 p-2 z-[60] flex flex-col gap-1">
+                <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase border-b mb-1">My Classrooms</div>
+                <div id="dropdownRoomList" class="max-h-48 overflow-y-auto flex flex-col gap-1"></div>
+                <div class="border-t mt-1 pt-1">
+                    <button onclick="app.promptAddRoom()" class="w-full text-left px-3 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-2">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i> Create New Room
+                    </button>
+                </div>
+            </div>
+
+            <button onclick="app.toggleSettings()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-full transition relative">
+                <i data-lucide="settings-2" class="w-6 h-6"></i>
+            </button>
+        </div>
+    </nav>
+
+    <div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl z-[100] flex items-center gap-3 transition-all duration-300 opacity-0 translate-y-4 pointer-events-none">
+        <i id="toastIcon" data-lucide="info" class="w-5 h-5"></i>
+        <span id="toastMsg" class="font-bold text-sm">Message</span>
+    </div>
+
+    <main class="flex-1 relative w-full h-full overflow-hidden bg-slate-50">
+
+        <div id="sceneSetup" class="absolute inset-0 z-40 flex items-center justify-center p-4 bg-slate-50">
+            <div class="bg-white max-w-md w-full rounded-2xl shadow-xl border border-slate-100 p-6 md:p-8 space-y-6">
+                <div class="text-center">
+                    <h2 class="text-2xl font-black text-slate-800 mb-2">Welcome!</h2>
+                    <p class="text-slate-500 text-sm">役割を選んでください</p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                    <button onclick="app.setMode('join')" id="tabJoin" class="py-3 rounded-lg text-sm font-bold transition bg-white shadow text-blue-600 flex flex-col items-center leading-tight">
+                        <span class="text-base">生徒</span>
+                        <span class="text-[10px] opacity-70">Join Room</span>
+                    </button>
+                    <button onclick="app.setMode('host')" id="tabHost" class="py-3 rounded-lg text-sm font-bold transition text-slate-500 hover:bg-slate-200 flex flex-col items-center leading-tight">
+                        <span class="text-base">先生</span>
+                        <span class="text-[10px] opacity-70">Create Room</span>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase ml-1">Nickname (名前)</label>
+                        <input type="text" id="inpName" class="w-full bg-slate-50 border-2 border-slate-200 focus:border-blue-500 rounded-xl p-3 outline-none font-bold text-lg transition" placeholder="Taro">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 uppercase ml-1">Room ID (部屋番号)</label>
+                        <div class="relative">
+                            <input type="text" id="inpRoom" class="w-full bg-slate-50 border-2 border-slate-200 focus:border-blue-500 rounded-xl p-3 outline-none font-mono font-bold text-lg uppercase transition placeholder:normal-case" placeholder="101">
+                            <button onclick="app.generateRandomRoom()" id="btnRandRoom" class="hidden absolute right-2 top-2 p-1.5 bg-slate-200 rounded-lg hover:bg-slate-300 text-slate-600">
+                                <i data-lucide="dices" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-1 ml-1">※ 先生: 1つ目の部屋IDを入力（後で増やせます）</p>
+                    </div>
+                </div>
+
+                <button onclick="app.enterRoom()" class="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold py-4 rounded-xl shadow-lg shadow-blue-200 transition flex items-center justify-center gap-2 text-lg">
+                    <span>Enter Room</span> <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="sceneLobby" class="hidden absolute inset-0 z-30 flex flex-col bg-slate-50">
+            <div id="hostControls" class="hidden bg-white border-b p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between shrink-0 shadow-sm z-20">
+                <div class="flex items-center gap-4">
+                    <div id="qrcode" class="hidden md:block border-4 border-white shadow-lg rounded-lg overflow-hidden w-16 h-16"></div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-400 uppercase">Room URL</div>
+                        <div class="font-mono text-sm md:text-lg font-bold select-all truncate max-w-[200px]" id="shareUrl">...</div>
+                        <div class="flex items-center gap-1 mt-1">
+                            <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                            <span class="text-xs text-slate-500 font-bold" id="settingStatus">Ready</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="w-full md:w-auto flex flex-col gap-2">
+                    <div class="bg-slate-100 p-2 rounded-lg flex items-center justify-between gap-4">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] font-bold text-slate-500 uppercase leading-none">Total Groups</span>
+                            <span id="groupCountDisplay" class="text-blue-600 text-lg font-black leading-none">1</span>
+                        </div>
+                        <input type="range" id="groupRange" min="1" max="8" value="1" class="flex-1 w-24 accent-blue-600 mx-2" onchange="app.updateGroupConfig(this.value)" oninput="document.getElementById('groupCountDisplay').textContent = this.value">
+                        <button onclick="app.shuffleGroups()" class="bg-white border shadow-sm px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50 text-blue-600 flex items-center gap-1">
+                             <i data-lucide="shuffle" class="w-3 h-3"></i> Shuffle
+                        </button>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="app.openPresets()" class="flex-1 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 py-2 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition">
+                            <i data-lucide="library" class="w-4 h-4"></i> Words
+                        </button>
+                        <button onclick="app.startGame()" id="btnStartGame" class="flex-1 bg-blue-600 text-white hover:bg-blue-700 py-2 px-6 rounded-lg font-bold shadow-lg shadow-blue-200 flex items-center justify-center gap-2 transition opacity-50 cursor-not-allowed text-sm">
+                            <i data-lucide="play" class="w-4 h-4"></i> START
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="guestControls" class="hidden bg-white border-b p-3 shrink-0 shadow-sm z-20">
+                <div class="text-center mb-2">
+                    <h3 class="text-sm font-bold text-slate-600">Choose Your Group / チームを選んでね</h3>
+                </div>
+                <div id="groupSelector" class="flex flex-wrap justify-center gap-2">
+                    </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50">
+                <div id="lobbyList" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 pb-20"></div>
+                <div id="guestWaitMsg" class="hidden flex flex-col items-center justify-center h-40 text-center mt-4">
+                    <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-2 animate-bounce">
+                        <i data-lucide="coffee" class="w-6 h-6 text-blue-600"></i>
+                    </div>
+                    <h3 class="text-lg font-bold text-slate-700">Waiting for Host...</h3>
+                    <p class="text-sm text-slate-500">先生の開始合図を待っています</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="sceneGame" class="hidden absolute inset-0 z-20 flex flex-col md:flex-row bg-slate-100">
+            <div class="w-full md:w-72 bg-white border-r shadow-sm flex flex-col shrink-0 h-[30%] md:h-full z-10">
+                <div class="p-3 border-b bg-slate-50 flex justify-between items-center">
+                    <div>
+                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Current Turn</div>
+                        <div id="turnDisplay" class="flex items-center gap-2">
+                            <div id="turnAvatar" class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-500 text-xs">?</div>
+                            <div class="min-w-0">
+                                <div id="turnName" class="font-bold text-sm text-slate-800 truncate leading-tight">--</div>
+                                <div id="turnStatus" class="text-[10px] text-blue-600 font-bold">Thinking...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="gameGroupBadge" class="px-2 py-1 rounded text-xs font-bold border bg-gray-100">Grp A</div>
+                </div>
+                
+                <div id="hostMonitorPanel" class="hidden p-2 bg-slate-800 text-white overflow-x-auto whitespace-nowrap space-x-2 shrink-0"></div>
+                <div class="flex-1 overflow-y-auto p-2 space-y-2" id="scoreList"></div>
+
+                <div id="hostGameControls" class="hidden p-3 border-t bg-slate-50">
+                    <button onclick="app.resetGame()" class="w-full bg-white border-2 border-slate-200 hover:bg-slate-100 text-slate-600 font-bold py-2 rounded-lg flex items-center justify-center gap-2 transition text-sm">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset Game
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex-1 relative overflow-y-auto bg-slate-100 p-2 md:p-6" id="gameArea">
+                <div id="gameGrid" class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2 md:gap-4 max-w-6xl mx-auto pb-20"></div>
+                
+                <div id="myTurnOverlay" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-6 py-2 rounded-full shadow-xl shadow-blue-500/30 z-30 animate-bounce pointer-events-none">
+                    <span class="font-bold text-lg">YOUR TURN!</span>
+                </div>
+
+                <div id="spectatorOverlay" class="hidden absolute bottom-4 right-4 bg-slate-800/80 text-white px-4 py-2 rounded-lg pointer-events-none backdrop-blur-sm text-xs font-bold">
+                    <i data-lucide="eye" class="inline w-3 h-3 mr-1"></i> Spectating
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="settingsModal" class="modal fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center bg-slate-50 rounded-t-2xl">
+                <div>
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Settings for Room:</div>
+                    <div id="settingsRoomId" class="text-2xl font-black text-blue-600 leading-none">--</div>
+                </div>
+                <button onclick="app.toggleSettings()" class="p-2 hover:bg-slate-200 rounded-full"><i data-lucide="x" class="w-6 h-6 text-slate-500"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-6">
+                <div class="space-y-3">
+                    <div class="flex items-center gap-2 mb-2">
+                        <i data-lucide="sparkles" class="w-5 h-5 text-yellow-500"></i>
+                        <h4 class="font-bold text-slate-700">Quick Presets</h4>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="app.loadPreset('colors')" class="p-4 border-2 border-slate-100 rounded-xl hover:border-blue-400 hover:bg-blue-50 text-left transition group">
+                            <div class="font-bold text-blue-900 group-hover:text-blue-700">Colors</div>
+                            <div class="text-xs text-slate-400 mt-1">Red, Blue, Green...</div>
+                        </button>
+                        <button onclick="app.loadPreset('animals')" class="p-4 border-2 border-slate-100 rounded-xl hover:border-blue-400 hover:bg-blue-50 text-left transition group">
+                            <div class="font-bold text-blue-900 group-hover:text-blue-700">Animals</div>
+                            <div class="text-xs text-slate-400 mt-1">Cat, Dog, Lion...</div>
+                        </button>
+                        <button onclick="app.loadPreset('numbers')" class="p-4 border-2 border-slate-100 rounded-xl hover:border-blue-400 hover:bg-blue-50 text-left transition group">
+                            <div class="font-bold text-blue-900 group-hover:text-blue-700">Numbers</div>
+                            <div class="text-xs text-slate-400 mt-1">One, Two, Ten...</div>
+                        </button>
+                        <button onclick="app.loadPreset('verbs')" class="p-4 border-2 border-slate-100 rounded-xl hover:border-blue-400 hover:bg-blue-50 text-left transition group">
+                            <div class="font-bold text-blue-900 group-hover:text-blue-700">Basic Verbs</div>
+                            <div class="text-xs text-slate-400 mt-1">Run, Eat, Play...</div>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="pt-6 border-t">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="edit-3" class="w-5 h-5 text-slate-500"></i>
+                            <h4 class="font-bold text-slate-700">Custom Words</h4>
+                        </div>
+                        <div class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded flex items-center gap-1">
+                            Target: <span id="customWordsRoomId">--</span>
+                        </div>
+                    </div>
+                    <textarea id="customWords" class="w-full h-40 p-4 border-2 border-slate-200 rounded-xl text-sm font-mono bg-white focus:ring-4 focus:ring-blue-100 focus:border-blue-500 outline-none transition" placeholder="Apple    りんご&#10;Banana   バナナ"></textarea>
+                    <button onclick="app.loadCustom()" class="mt-4 w-full bg-slate-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-slate-900 active:scale-95 transition flex items-center justify-center gap-2">
+                        <i data-lucide="save" class="w-5 h-5"></i> Update Room Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // ============================================
+        // ⚠️ 重要: ここにFirebaseの設定を貼り付けてください
+        // ============================================
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+        // ============================================
+        
+        // データの保存場所識別子
+        const appId = 'english-match-v8'; 
+
+        const PRESETS = {
+            colors: "Red 赤\nBlue 青\nGreen 緑\nYellow 黄色\nBlack 黒\nWhite 白\nPurple 紫\nPink ピンク",
+            animals: "Cat 猫\nDog 犬\nLion ライオン\nTiger 虎\nBear クマ\nRabbit うさぎ\nBird 鳥\nFish 魚",
+            numbers: "One 1\nTwo 2\nThree 3\nFour 4\nFive 5\nSix 6\nSeven 7\nEight 8\nNine 9\nTen 10",
+            verbs: "Run 走る\nEat 食べる\nSleep 寝る\nStudy 勉強する\nPlay 遊ぶ\nSwim 泳ぐ\nRead 読む\nWrite 書く"
+        };
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playTone(freq, type, duration) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+        
+        const sounds = {
+            flip: () => playTone(300, 'sine', 0.1),
+            match: () => { playTone(600, 'sine', 0.1); setTimeout(() => playTone(800, 'sine', 0.2), 100); },
+            miss: () => { playTone(200, 'sawtooth', 0.2), setTimeout(() => playTone(150, 'sawtooth', 0.2), 100); },
+            win: () => { playTone(400, 'square', 0.1); setTimeout(() => playTone(600, 'square', 0.1), 150); setTimeout(() => playTone(1000, 'square', 0.4), 300); }
+        };
+
+        const appState = {
+            db: null,
+            unsub: null,
+            me: { id: '', name: '', isHost: false },
+            room: { id: '', data: null },
+            hostViewGroupId: 0,
+            savedRooms: []
+        };
+
+        const GROUP_LABELS = ['A','B','C','D','E','F','G','H'];
+
+        const getRoomDoc = (roomId) => doc(appState.db, 'apps', appId, 'rooms', roomId);
+
+        window.app = {
+            init: async () => {
+                try {
+                    // Config check
+                    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY") {
+                        throw new Error("Firebase設定が見つかりません。<br>コード内の 'firebaseConfig' を編集してAPIキーを設定してください。");
+                    }
+
+                    const fApp = initializeApp(firebaseConfig);
+                    const auth = getAuth(fApp);
+                    appState.db = getFirestore(fApp);
+
+                    // 匿名認証を使用 (簡単セットアップ用)
+                    await signInAnonymously(auth);
+
+                    appState.me.id = localStorage.getItem('nico_pid') || 'p_' + Math.random().toString(36).substr(2, 9);
+                    localStorage.setItem('nico_pid', appState.me.id);
+                    
+                    const savedName = localStorage.getItem('nico_name');
+                    if(savedName) document.getElementById('inpName').value = savedName;
+                    
+                    const sr = localStorage.getItem('nico_saved_rooms');
+                    if(sr) appState.savedRooms = JSON.parse(sr);
+
+                    document.addEventListener('click', (e) => {
+                        const dropdown = document.getElementById('roomDropdown');
+                        const btn = document.getElementById('roomMenuBtn');
+                        if (!btn.contains(e.target) && !dropdown.contains(e.target)) {
+                            dropdown.classList.remove('open');
+                        }
+                    });
+
+                    lucide.createIcons();
+                } catch(e) {
+                    console.error("Init Error:", e);
+                    document.body.innerHTML = `<div class="h-screen flex items-center justify-center bg-red-50 text-red-800 p-8 text-center">
+                        <div><h1 class="text-2xl font-bold mb-2">Setup Error</h1><p>${e.message}</p></div>
+                    </div>`;
+                }
+            },
+
+            setMode: (mode) => {
+                const tabJoin = document.getElementById('tabJoin');
+                const tabHost = document.getElementById('tabHost');
+                const btnRand = document.getElementById('btnRandRoom');
+                const inpRoom = document.getElementById('inpRoom');
+
+                if (mode === 'host') {
+                    appState.me.isHost = true;
+                    tabHost.className = "py-3 rounded-lg text-sm font-bold transition bg-white shadow text-blue-600 border border-blue-100 flex flex-col items-center leading-tight";
+                    tabJoin.className = "py-3 rounded-lg text-sm font-bold transition text-slate-500 hover:bg-slate-200 flex flex-col items-center leading-tight";
+                    btnRand.classList.remove('hidden');
+                    if(!inpRoom.value && appState.savedRooms.length > 0) {
+                         inpRoom.value = appState.savedRooms[0];
+                    } else if (!inpRoom.value) {
+                         window.app.generateRandomRoom();
+                    }
+                } else {
+                    appState.me.isHost = false;
+                    tabJoin.className = "py-3 rounded-lg text-sm font-bold transition bg-white shadow text-blue-600 border border-blue-100 flex flex-col items-center leading-tight";
+                    tabHost.className = "py-3 rounded-lg text-sm font-bold transition text-slate-500 hover:bg-slate-200 flex flex-col items-center leading-tight";
+                    btnRand.classList.add('hidden');
+                }
+            },
+
+            generateRandomRoom: () => {
+                const r = Math.floor(1000 + Math.random() * 9000).toString();
+                document.getElementById('inpRoom').value = r;
+            },
+
+            enterRoom: async () => {
+                const name = document.getElementById('inpName').value.trim();
+                const room = document.getElementById('inpRoom').value.trim().toUpperCase();
+                if (!name || !room) { window.app.toast("名前と部屋番号を入力してください", "alert-circle"); return; }
+                
+                localStorage.setItem('nico_name', name);
+                appState.me.name = name;
+                
+                if(appState.me.isHost) {
+                    if(!appState.savedRooms.includes(room)) {
+                        appState.savedRooms.unshift(room);
+                        localStorage.setItem('nico_saved_rooms', JSON.stringify(appState.savedRooms));
+                    }
+                }
+
+                try {
+                    await window.app.connectToRoom(room);
+                    
+                    document.getElementById('navControls').classList.remove('hidden'); 
+                    document.getElementById('sceneSetup').classList.add('hidden');
+                    document.getElementById('sceneLobby').classList.remove('hidden');
+
+                    if(appState.me.isHost) {
+                        document.getElementById('hostControls').classList.remove('hidden');
+                        document.getElementById('hostGameControls').classList.remove('hidden');
+                        document.getElementById('hostMonitorPanel').classList.remove('hidden');
+                        document.getElementById('roomMenuBtn').classList.remove('pointer-events-none');
+                        
+                        const url = `${window.location.origin}${window.location.pathname}?room=${room}`;
+                        document.getElementById('shareUrl').textContent = url;
+                        document.getElementById('qrcode').innerHTML = ""; 
+                        new QRCode(document.getElementById("qrcode"), { text: url, width: 64, height: 64 });
+                    } else {
+                        document.getElementById('guestControls').classList.remove('hidden');
+                        document.getElementById('guestWaitMsg').classList.remove('hidden');
+                        document.getElementById('roomMenuBtn').classList.add('pointer-events-none');
+                        document.querySelector('#roomMenuBtn i').classList.add('hidden');
+                    }
+                    lucide.createIcons();
+                } catch (e) {
+                    console.error(e);
+                    alert("入室できませんでした。\nError: " + e.message);
+                }
+            },
+
+            connectToRoom: async (room) => {
+                if(appState.unsub) appState.unsub(); 
+                
+                appState.room.id = room;
+                document.getElementById('navRoomId').textContent = room;
+                document.getElementById('settingsRoomId').textContent = room;
+                document.getElementById('customWordsRoomId').textContent = room;
+                
+                await window.app.syncRoom();
+            },
+            
+            toggleRoomMenu: () => {
+                if(!appState.me.isHost) return;
+                const menu = document.getElementById('roomDropdown');
+                if (menu.classList.contains('open')) {
+                    menu.classList.remove('open');
+                } else {
+                    const listEl = document.getElementById('dropdownRoomList');
+                    listEl.innerHTML = appState.savedRooms.map(r => `
+                        <button onclick="app.switchRoom('${r}')" class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-slate-100 flex items-center justify-between group ${r === appState.room.id ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-600'}">
+                            <span>${r}</span>
+                            ${r === appState.room.id ? '<i data-lucide="check" class="w-4 h-4"></i>' : '<i data-lucide="arrow-right" class="w-4 h-4 opacity-0 group-hover:opacity-50"></i>'}
+                        </button>
+                    `).join('');
+                    lucide.createIcons();
+                    menu.classList.add('open');
+                }
+            },
+
+            switchRoom: async (roomId) => {
+                if(roomId === appState.room.id) return;
+                document.getElementById('roomDropdown').classList.remove('open');
+                document.getElementById('settingsModal').classList.remove('open');
+                document.getElementById('sceneGame').classList.add('hidden');
+                document.getElementById('sceneLobby').classList.remove('hidden');
+                document.getElementById('gameGrid').innerHTML = '';
+                
+                await window.app.connectToRoom(roomId);
+                const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+                document.getElementById('shareUrl').textContent = url;
+                document.getElementById('qrcode').innerHTML = ""; 
+                new QRCode(document.getElementById("qrcode"), { text: url, width: 64, height: 64 });
+                window.app.toast(`Switched to Room ${roomId}`, "arrow-right");
+            },
+
+            promptAddRoom: async () => {
+                document.getElementById('roomDropdown').classList.remove('open');
+                const r = prompt("Enter new Class/Room Name (e.g., 1A, 3B):");
+                if(r && r.trim()) {
+                    const newRoom = r.trim().toUpperCase();
+                    if(!appState.savedRooms.includes(newRoom)) {
+                        appState.savedRooms.push(newRoom);
+                        localStorage.setItem('nico_saved_rooms', JSON.stringify(appState.savedRooms));
+                    }
+                    await window.app.switchRoom(newRoom);
+                }
+            },
+
+            syncRoom: async () => {
+                const roomRef = getRoomDoc(appState.room.id);
+                const snap = await getDoc(roomRef);
+                const playerObj = { id: appState.me.id, name: appState.me.name, score: 0, isHost: appState.me.isHost, groupId: -1 };
+                
+                if (!snap.exists()) {
+                    if (!appState.me.isHost) { alert("部屋が見つかりません。"); location.reload(); return; }
+                    await setDoc(roomRef, { status: 'lobby', players: [playerObj], groups: {}, config: {wordText: '', groupCount: 1}, updated: Date.now() });
+                    await window.app.loadPreset('colors');
+                } else {
+                    const data = snap.data();
+                    if (appState.me.isHost) {
+                        if (!data.config || !data.config.wordText) {
+                            await window.app.loadPreset('colors');
+                        } else {
+                            window.app.toast("設定を読み込みました", "check");
+                            document.getElementById('settingStatus').textContent = "Settings Loaded";
+                        }
+                    }
+                    const pList = data.players || [];
+                    const exists = pList.find(p => p.id === appState.me.id);
+                    if(!exists) await updateDoc(roomRef, { players: arrayUnion(playerObj) });
+                }
+
+                appState.unsub = onSnapshot(roomRef, (doc) => {
+                    if(!doc.exists()) return;
+                    appState.room.data = doc.data();
+                    window.app.render(appState.room.data);
+                });
+            },
+
+            render: (data) => {
+                const lobby = document.getElementById('sceneLobby');
+                const game = document.getElementById('sceneGame');
+                const lobbyList = document.getElementById('lobbyList');
+                
+                lobbyList.innerHTML = data.players.map(p => {
+                    const grpIdx = p.groupId !== undefined && p.groupId > -1 ? p.groupId : null;
+                    const grpClass = grpIdx !== null ? `bg-g-${grpIdx % 8}` : 'bg-slate-200 text-slate-500';
+                    const grpLabel = grpIdx !== null ? GROUP_LABELS[grpIdx] : '?';
+                    return `
+                    <div class="bg-white p-2 rounded-xl shadow-sm flex flex-col items-center border ${p.isHost ? 'border-indigo-200 bg-indigo-50' : 'border-slate-100'} relative overflow-hidden transition-all duration-300">
+                        ${grpIdx !== null ? `<div class="absolute top-0 right-0 ${grpClass} text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">${grpLabel}</div>` : ''}
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold mb-1 mt-1 ${grpIdx !== null ? grpClass : 'bg-slate-100'}">
+                            ${p.name.charAt(0)}
+                        </div>
+                        <div class="font-bold text-xs truncate w-full text-center">${p.name}</div>
+                    </div>
+                `}).join('');
+
+                if (data.status === 'playing') {
+                    lobby.classList.add('hidden');
+                    game.classList.remove('hidden');
+                    window.app.renderGame(data);
+                } else {
+                    game.classList.add('hidden');
+                    lobby.classList.remove('hidden');
+                    document.getElementById('gameGrid').innerHTML = '';
+                    
+                    if(appState.me.isHost) {
+                        const btn = document.getElementById('btnStartGame');
+                        const hasWords = data.config && data.config.wordText;
+                        
+                        if (hasWords) { 
+                            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                            btn.disabled = false;
+                        } else {
+                            btn.classList.add('opacity-50', 'cursor-not-allowed');
+                            btn.disabled = true;
+                        }
+                    }
+
+                    if(!appState.me.isHost) {
+                        const groupCount = data.config && data.config.groupCount ? data.config.groupCount : 1;
+                        const selector = document.getElementById('groupSelector');
+                        const myGroup = data.players.find(p => p.id === appState.me.id)?.groupId;
+                        
+                        let btnsHtml = '';
+                        for(let i=0; i<groupCount; i++) {
+                            const label = GROUP_LABELS[i];
+                            const isSelected = myGroup === i;
+                            const btnClass = isSelected 
+                                ? `bg-g-${i%8} ring-2 ring-blue-500 scale-105 shadow-md` 
+                                : `bg-white border hover:bg-slate-50 text-slate-500`;
+                                
+                            btnsHtml += `
+                                <button onclick="app.joinGroup(${i})" class="w-10 h-10 rounded-full font-bold text-sm transition ${btnClass}">
+                                    ${label}
+                                </button>
+                            `;
+                        }
+                        selector.innerHTML = btnsHtml;
+                    }
+                }
+                lucide.createIcons();
+            },
+
+            renderGame: (data) => {
+                const me = data.players.find(p => p.id === appState.me.id);
+                if(!me) return;
+
+                let targetGroupId = me.groupId;
+                const isSpectating = appState.me.isHost;
+                if (isSpectating) {
+                    targetGroupId = appState.hostViewGroupId;
+                    document.getElementById('spectatorOverlay').classList.remove('hidden');
+                    const groupIds = Object.keys(data.groups).sort();
+                    document.getElementById('hostMonitorPanel').innerHTML = groupIds.map(gid => `
+                        <button onclick="app.setHostView(${gid})" class="px-3 py-1 rounded-full text-xs font-bold ${targetGroupId == gid ? 'bg-blue-500 text-white' : 'bg-slate-700 text-slate-300'}">
+                            Grp ${GROUP_LABELS[gid]}
+                        </button>
+                    `).join('');
+                } else {
+                    document.getElementById('spectatorOverlay').classList.add('hidden');
+                }
+
+                const groupData = data.groups ? data.groups[targetGroupId] : null;
+                const groupPlayers = data.players.filter(p => p.groupId == targetGroupId);
+                
+                if (!groupData) {
+                    document.getElementById('gameArea').innerHTML = '<div class="text-center p-10 text-slate-400">Waiting for next game...</div>';
+                    return;
+                }
+
+                const grpLabel = GROUP_LABELS[targetGroupId] || '?';
+                const badgeEl = document.getElementById('gameGroupBadge');
+                badgeEl.textContent = `Group ${grpLabel}`;
+                badgeEl.className = `px-2 py-1 rounded text-xs font-bold border bg-g-${targetGroupId % 8}`;
+
+                const currentP = groupPlayers[groupData.turn % groupPlayers.length];
+                if(currentP) {
+                    document.getElementById('turnName').textContent = currentP.name;
+                    document.getElementById('turnAvatar').textContent = currentP.name.charAt(0);
+                    const isMyTurn = currentP.id === appState.me.id;
+                    const statusEl = document.getElementById('turnStatus');
+                    const turnDisplay = document.getElementById('turnDisplay');
+                    if (isMyTurn) {
+                        statusEl.textContent = "Your Turn!";
+                        statusEl.classList.remove('text-blue-600'); statusEl.classList.add('text-green-600');
+                        turnDisplay.classList.add('bg-green-50', 'p-1', 'rounded-lg', 'border', 'border-green-200');
+                        document.getElementById('myTurnOverlay').classList.remove('hidden');
+                    } else {
+                        statusEl.textContent = "Thinking...";
+                        statusEl.classList.add('text-blue-600'); statusEl.classList.remove('text-green-600');
+                        turnDisplay.classList.remove('bg-green-50', 'p-1', 'rounded-lg', 'border', 'border-green-200');
+                        document.getElementById('myTurnOverlay').classList.add('hidden');
+                    }
+                }
+
+                document.getElementById('scoreList').innerHTML = groupPlayers.map((p, idx) => `
+                    <div class="flex items-center justify-between p-2 rounded-lg ${(groupData.turn % groupPlayers.length) === idx ? 'bg-blue-50 border border-blue-200' : 'bg-white'}">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <div class="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold">${p.name.charAt(0)}</div>
+                            <div class="text-sm font-bold truncate ${p.id===me.id ? 'text-blue-700' : 'text-slate-700'}">${p.name}</div>
+                        </div>
+                        <div class="font-black text-lg ${p.score > 0 ? 'text-blue-600' : 'text-slate-300'}">${p.score}</div>
+                    </div>
+                `).join('');
+
+                const grid = document.getElementById('gameGrid');
+                grid.innerHTML = '';
+                groupData.cards.forEach((c, idx) => {
+                    const div = document.createElement('div');
+                    div.className = `card-container ${c.flipped || c.matched ? 'flipped' : ''} ${c.matched ? 'matched' : ''}`;
+                    div.innerHTML = `
+                        <div class="card-inner bg-white">
+                            <div class="card-front">${idx + 1}</div>
+                            <div class="card-back flex flex-col justify-center px-1">
+                                <span class="fit-text" style="font-size: clamp(0.6rem, 2vw, 1rem);">${c.text}</span>
+                            </div>
+                        </div>
+                    `;
+                    if (!appState.me.isHost) { div.onclick = () => window.app.handleCardClick(idx); }
+                    grid.appendChild(div);
+                });
+                
+                // アイコンの再描画 (動的生成要素のため)
+                lucide.createIcons();
+            },
+
+            handleCardClick: async (idx) => {
+                const d = appState.room.data;
+                const me = d.players.find(p => p.id === appState.me.id);
+                if (!d || d.status !== 'playing' || !me || me.groupId === -1) return;
+                
+                const groupData = d.groups[me.groupId];
+                if(!groupData) return; 
+
+                const groupPlayers = d.players.filter(p => p.groupId == me.groupId);
+                const turnP = groupPlayers[groupData.turn % groupPlayers.length];
+
+                if (turnP.id !== me.id) { window.app.toast("Not your turn!", "hand"); return; }
+                if (groupData.flipped.length >= 2) return;
+                if (groupData.cards[idx].flipped || groupData.cards[idx].matched) return;
+
+                sounds.flip();
+                const newCards = [...groupData.cards];
+                newCards[idx].flipped = true;
+                const newFlipped = [...groupData.flipped, idx];
+                
+                const newGroups = { ...d.groups };
+                newGroups[me.groupId] = { ...groupData, cards: newCards, flipped: newFlipped };
+
+                await updateDoc(getRoomDoc(appState.room.id), { groups: newGroups });
+
+                if (newFlipped.length === 2) {
+                    setTimeout(() => window.app.checkMatch(me.groupId, newCards, newFlipped), 1000);
+                }
+            },
+
+            checkMatch: async (groupId, cards, flippedIdx) => {
+                const docRef = getRoomDoc(appState.room.id);
+                const d = appState.room.data;
+                const groupData = d.groups[groupId]; 
+                const idx1 = flippedIdx[0];
+                const idx2 = flippedIdx[1];
+                const c1 = cards[idx1];
+                const c2 = cards[idx2];
+                
+                let nextTurn = groupData.turn;
+                let players = [...d.players];
+                let isMatch = (c1.pairId === c2.pairId);
+
+                if (isMatch) {
+                    sounds.match();
+                    c1.matched = true;
+                    c2.matched = true;
+                    const groupPlayers = players.filter(p => p.groupId == groupId);
+                    const turnPId = groupPlayers[groupData.turn % groupPlayers.length].id;
+                    const pIndex = players.findIndex(p => p.id === turnPId);
+                    if(pIndex > -1) {
+                         players[pIndex].score++;
+                         if(players[pIndex].id === appState.me.id) confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                    }
+                } else {
+                    sounds.miss();
+                    c1.flipped = false;
+                    c2.flipped = false;
+                    nextTurn = groupData.turn + 1;
+                }
+
+                const newGroups = { ...d.groups };
+                newGroups[groupId] = { ...groupData, cards: cards, flipped: [], turn: nextTurn };
+                await updateDoc(docRef, { groups: newGroups, players: players });
+            },
+
+            // --- GROUP LOGIC ---
+            updateGroupConfig: async (val) => {
+                if(!appState.me.isHost) return;
+                const docRef = getRoomDoc(appState.room.id);
+                await updateDoc(docRef, { "config.groupCount": parseInt(val) });
+            },
+
+            joinGroup: async (gid) => {
+                const docRef = getRoomDoc(appState.room.id);
+                const snap = await getDoc(docRef);
+                if(!snap.exists()) return;
+                
+                let currentPlayers = snap.data().players;
+                let meIdx = currentPlayers.findIndex(p => p.id === appState.me.id);
+                
+                if(meIdx > -1) {
+                    currentPlayers[meIdx].groupId = gid;
+                    currentPlayers[meIdx].score = 0;
+                    await updateDoc(docRef, { players: currentPlayers });
+                    window.app.toast(`Joined Group ${GROUP_LABELS[gid]}!`, "check");
+                }
+            },
+
+            shuffleGroups: async () => {
+                if(!appState.me.isHost) return;
+                const count = parseInt(document.getElementById('groupRange').value);
+                const d = appState.room.data;
+                let players = [...d.players].sort(() => Math.random() - 0.5);
+                players = players.map((p, i) => ({ ...p, groupId: i % count, score: 0 }));
+                await updateDoc(getRoomDoc(appState.room.id), { players: players });
+                window.app.toast(`Shuffled into ${count} groups!`, "shuffle");
+            },
+
+            startGame: async () => {
+                if(!appState.me.isHost) return;
+                const d = appState.room.data;
+                const rawText = d.config.wordText;
+                if(!rawText) { window.app.toast("Select words first!", "library"); return; }
+
+                const lines = rawText.trim().split('\n');
+                let baseDeck = [];
+                let pairId = 0;
+                lines.forEach(line => {
+                    let parts = line.split(/[\t,]+/);
+                    if(parts.length < 2) parts = line.split(/\s{2,}/);
+                    if(parts.length >= 2 && parts[0].trim() && parts[1].trim()) {
+                        baseDeck.push({ text: parts[0].trim(), pairId: pairId, flipped: false, matched: false });
+                        baseDeck.push({ text: parts[1].trim(), pairId: pairId, flipped: false, matched: false });
+                        pairId++;
+                    }
+                });
+                if(baseDeck.length === 0) return;
+
+                // --- AUTO ASSIGN LOGIC ---
+                let players = [...d.players];
+                const groupCount = d.config.groupCount || 1;
+                
+                players = players.map((p, i) => {
+                    if (p.groupId === -1 || p.groupId === undefined) {
+                        return { ...p, groupId: i % groupCount, score: 0 };
+                    }
+                    return { ...p, score: 0 }; 
+                });
+
+                const groupIds = [...new Set(players.map(p => p.groupId))].filter(g => g > -1);
+                const groups = {};
+                
+                groupIds.forEach(gid => {
+                    const deck = [...baseDeck].map(c => ({...c})).sort(() => Math.random() - 0.5);
+                    groups[gid] = { cards: deck, flipped: [], turn: 0 };
+                });
+
+                await updateDoc(getRoomDoc(appState.room.id), { 
+                    status: 'playing', 
+                    groups: groups,
+                    players: players 
+                });
+            },
+
+            resetGame: async () => {
+                if(!confirm("Reset all groups?")) return;
+                await updateDoc(getRoomDoc(appState.room.id), { status: 'lobby' });
+            },
+
+            setHostView: (gid) => {
+                appState.hostViewGroupId = gid;
+                window.app.renderGame(appState.room.data);
+            },
+
+            toggleSettings: () => {
+                const el = document.getElementById('settingsModal');
+                if(!el.classList.contains('open') && appState.room.data && appState.room.data.config) {
+                     document.getElementById('customWords').value = appState.room.data.config.wordText || "";
+                }
+                el.classList.toggle('open');
+            },
+            openPresets: () => window.app.toggleSettings(),
+            
+            loadPreset: async (key) => {
+                const text = PRESETS[key];
+                await window.app.saveConfig(text);
+                window.app.toggleSettings();
+                window.app.toast(`Loaded ${key}!`, "check");
+            },
+            
+            loadCustom: async () => {
+                const text = document.getElementById('customWords').value;
+                if(text) {
+                    await window.app.saveConfig(text);
+                    window.app.toggleSettings();
+                    window.app.toast("Custom words updated!", "check");
+                }
+            },
+
+            saveConfig: async (text) => {
+                if(!appState.me.isHost) return;
+                await updateDoc(getRoomDoc(appState.room.id), { "config.wordText": text });
+                document.getElementById('settingStatus').textContent = "Settings Saved";
+            },
+
+            toast: (msg, iconName) => {
+                const t = document.getElementById('toast');
+                document.getElementById('toastMsg').textContent = msg;
+                t.classList.remove('opacity-0', 'translate-y-4');
+                setTimeout(() => t.classList.add('opacity-0', 'translate-y-4'), 3000);
+            }
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoom = urlParams.get('room');
+        if(urlRoom) {
+            document.getElementById('inpRoom').value = urlRoom;
+            window.app.setMode('join');
+        }
+
+        window.app.init();
+    </script>
+</body>
+</html>
