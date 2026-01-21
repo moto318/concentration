@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>English Concentration v7.2 (Smart Editor)</title>
+    <title>English Concentration v7.4 (Fixed Auth)</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Icons -->
@@ -105,7 +105,7 @@
             </div>
             <div>
                 <h1 class="font-bold text-lg leading-none tracking-tight text-slate-800">English Match</h1>
-                <p class="text-[10px] text-slate-400 font-mono leading-none mt-0.5">Room Manager v7.2</p>
+                <p class="text-[10px] text-slate-400 font-mono leading-none mt-0.5">Stable Edition v7.4</p>
             </div>
         </div>
         
@@ -380,18 +380,12 @@
     <!-- AUDIO ENGINE (Simple Web Audio API) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion, collection } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // --- CONFIG ---
-        const firebaseConfig = {
-            apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
-            authDomain: "concentration-2cb8a.firebaseapp.com",
-            projectId: "concentration-2cb8a",
-            storageBucket: "concentration-2cb8a.firebasestorage.app",
-            messagingSenderId: "1034581366776",
-            appId: "1:1034581366776:web:e46d84210c3eacba3ae80d",
-            measurementId: "G-D3GC22P1P5"
-        };
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
         const PRESETS = {
             colors: "Red 赤\nBlue 青\nGreen 緑\nYellow 黄色\nBlack 黒\nWhite 白\nPurple 紫\nPink ピンク",
@@ -433,10 +427,27 @@
 
         const GROUP_LABELS = ['A','B','C','D','E','F','G','H'];
 
+        // --- FIRESTORE HELPERS ---
+        const getRoomDoc = (roomId) => doc(appState.db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+
         window.app = {
             init: async () => {
                 const fApp = initializeApp(firebaseConfig);
+                const auth = getAuth(fApp);
                 appState.db = getFirestore(fApp);
+
+                // Auth
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch(e) {
+                    console.error("Auth error", e);
+                    window.app.toast("Authentication Error", "alert-circle");
+                }
+
                 appState.me.id = localStorage.getItem('nico_pid') || 'p_' + Math.random().toString(36).substr(2, 9);
                 localStorage.setItem('nico_pid', appState.me.id);
                 
@@ -503,25 +514,33 @@
                     }
                 }
 
-                await window.app.connectToRoom(room);
-                
-                document.getElementById('navControls').classList.remove('hidden'); 
-                document.getElementById('sceneSetup').classList.add('hidden');
-                document.getElementById('sceneLobby').classList.remove('hidden');
-
-                if(appState.me.isHost) {
-                    document.getElementById('hostControls').classList.remove('hidden');
-                    document.getElementById('hostGameControls').classList.remove('hidden');
-                    document.getElementById('hostMonitorPanel').classList.remove('hidden');
+                try {
+                    await window.app.connectToRoom(room);
                     
-                    // Enable Room Menu Button for teachers
-                    document.getElementById('roomMenuBtn').classList.remove('pointer-events-none');
-                } else {
-                    document.getElementById('guestControls').classList.remove('hidden');
-                    document.getElementById('guestWaitMsg').classList.remove('hidden');
-                    // Disable room menu for students (just show ID)
-                    document.getElementById('roomMenuBtn').classList.add('pointer-events-none');
-                    document.querySelector('#roomMenuBtn i').classList.add('hidden');
+                    document.getElementById('navControls').classList.remove('hidden'); 
+                    document.getElementById('sceneSetup').classList.add('hidden');
+                    document.getElementById('sceneLobby').classList.remove('hidden');
+
+                    if(appState.me.isHost) {
+                        document.getElementById('hostControls').classList.remove('hidden');
+                        document.getElementById('hostGameControls').classList.remove('hidden');
+                        document.getElementById('hostMonitorPanel').classList.remove('hidden');
+                        document.getElementById('roomMenuBtn').classList.remove('pointer-events-none');
+                        
+                        // Generate QR Code AFTER visible
+                        const url = `${window.location.origin}${window.location.pathname}?room=${room}`;
+                        document.getElementById('shareUrl').textContent = url;
+                        document.getElementById('qrcode').innerHTML = ""; 
+                        new QRCode(document.getElementById("qrcode"), { text: url, width: 64, height: 64 });
+                    } else {
+                        document.getElementById('guestControls').classList.remove('hidden');
+                        document.getElementById('guestWaitMsg').classList.remove('hidden');
+                        document.getElementById('roomMenuBtn').classList.add('pointer-events-none');
+                        document.querySelector('#roomMenuBtn i').classList.add('hidden');
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert("入室できませんでした。通信環境を確認するか、ページを再読み込みしてください。\nError: " + e.message);
                 }
             },
 
@@ -530,16 +549,9 @@
                 
                 appState.room.id = room;
                 document.getElementById('navRoomId').textContent = room;
-                
-                // Update Settings Modal Header
                 document.getElementById('settingsRoomId').textContent = room;
                 document.getElementById('customWordsRoomId').textContent = room;
                 
-                const url = `${window.location.origin}${window.location.pathname}?room=${room}`;
-                document.getElementById('shareUrl').textContent = url;
-                document.getElementById('qrcode').innerHTML = ""; 
-                new QRCode(document.getElementById("qrcode"), { text: url, width: 64, height: 64 });
-
                 await window.app.syncRoom();
             },
             
@@ -567,11 +579,21 @@
                 
                 document.getElementById('roomDropdown').classList.remove('open');
                 
+                // Close settings if open
+                document.getElementById('settingsModal').classList.remove('open');
+
                 document.getElementById('sceneGame').classList.add('hidden');
                 document.getElementById('sceneLobby').classList.remove('hidden');
                 document.getElementById('gameGrid').innerHTML = '';
                 
                 await window.app.connectToRoom(roomId);
+                
+                // Update QR
+                const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+                document.getElementById('shareUrl').textContent = url;
+                document.getElementById('qrcode').innerHTML = ""; 
+                new QRCode(document.getElementById("qrcode"), { text: url, width: 64, height: 64 });
+
                 window.app.toast(`Switched to Room ${roomId}`, "arrow-right");
             },
 
@@ -589,7 +611,7 @@
             },
 
             syncRoom: async () => {
-                const roomRef = doc(appState.db, "rooms", appState.room.id);
+                const roomRef = getRoomDoc(appState.room.id);
                 const snap = await getDoc(roomRef);
                 const playerObj = { id: appState.me.id, name: appState.me.name, score: 0, isHost: appState.me.isHost, groupId: -1 };
                 
@@ -786,7 +808,7 @@
                 const newGroups = { ...d.groups };
                 newGroups[me.groupId] = { ...groupData, cards: newCards, flipped: newFlipped };
 
-                await updateDoc(doc(appState.db, "rooms", appState.room.id), { groups: newGroups });
+                await updateDoc(getRoomDoc(appState.room.id), { groups: newGroups });
 
                 if (newFlipped.length === 2) {
                     setTimeout(() => window.app.checkMatch(me.groupId, newCards, newFlipped), 1000);
@@ -794,7 +816,7 @@
             },
 
             checkMatch: async (groupId, cards, flippedIdx) => {
-                const docRef = doc(appState.db, "rooms", appState.room.id);
+                const docRef = getRoomDoc(appState.room.id);
                 const d = appState.room.data;
                 const groupData = d.groups[groupId]; 
                 const idx1 = flippedIdx[0];
@@ -832,12 +854,12 @@
             // --- GROUP LOGIC ---
             updateGroupConfig: async (val) => {
                 if(!appState.me.isHost) return;
-                const docRef = doc(appState.db, "rooms", appState.room.id);
+                const docRef = getRoomDoc(appState.room.id);
                 await updateDoc(docRef, { "config.groupCount": parseInt(val) });
             },
 
             joinGroup: async (gid) => {
-                const docRef = doc(appState.db, "rooms", appState.room.id);
+                const docRef = getRoomDoc(appState.room.id);
                 const snap = await getDoc(docRef);
                 if(!snap.exists()) return;
                 
@@ -858,7 +880,7 @@
                 const d = appState.room.data;
                 let players = [...d.players].sort(() => Math.random() - 0.5);
                 players = players.map((p, i) => ({ ...p, groupId: i % count, score: 0 }));
-                await updateDoc(doc(appState.db, "rooms", appState.room.id), { players: players });
+                await updateDoc(getRoomDoc(appState.room.id), { players: players });
                 window.app.toast(`Shuffled into ${count} groups!`, "shuffle");
             },
 
@@ -890,7 +912,7 @@
                     groups[gid] = { cards: deck, flipped: [], turn: 0 };
                 });
 
-                await updateDoc(doc(appState.db, "rooms", appState.room.id), { 
+                await updateDoc(getRoomDoc(appState.room.id), { 
                     status: 'playing', 
                     groups: groups,
                     players: d.players.map(p => ({...p, score: 0})) 
@@ -899,7 +921,7 @@
 
             resetGame: async () => {
                 if(!confirm("Reset all groups?")) return;
-                await updateDoc(doc(appState.db, "rooms", appState.room.id), { status: 'lobby' });
+                await updateDoc(getRoomDoc(appState.room.id), { status: 'lobby' });
             },
 
             setHostView: (gid) => {
@@ -934,7 +956,7 @@
 
             saveConfig: async (text) => {
                 if(!appState.me.isHost) return;
-                await updateDoc(doc(appState.db, "rooms", appState.room.id), { "config.wordText": text });
+                await updateDoc(getRoomDoc(appState.room.id), { "config.wordText": text });
                 document.getElementById('settingStatus').textContent = "Settings Saved";
             },
 
