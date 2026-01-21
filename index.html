@@ -3,18 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Concentration Online v4.1 (Fixed)</title>
+    <title>English Concentration Online v5.2 (Full Shuffle)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Roboto:wght@400;700&display=swap');
         body { font-family: 'Roboto', 'Noto Sans JP', sans-serif; background-color: #f8fafc; user-select: none; }
         
-        /* Card Styles */
+        /* --- Card Styles --- */
         .card-container { perspective: 1000px; aspect-ratio: 4 / 3; width: 100%; }
         .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        .card-container.flipped .card-inner, .card-container.matched .card-inner { transform: rotateY(180deg); }
-        .card-container.matched .card-inner { box-shadow: 0 0 0 4px #22c55e; opacity: 0.8; }
+        
+        /* Flip Logic */
+        .card-container.flipped .card-inner { transform: rotateY(180deg); }
+        
+        /* Matched Logic */
+        .card-container.matched .card-inner { transform: rotateY(180deg); box-shadow: none; cursor: default; }
+        .card-container.matched .card-back { background-color: #dcfce7; border: 2px solid #22c55e; color: #14532d; } 
+
+        /* Faces */
         .card-front, .card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 0.75rem; padding: 0.5rem; }
         .card-front { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-size: 1.5rem; font-weight: bold; }
         .card-back { background-color: white; color: #1f2937; transform: rotateY(180deg); border: 2px solid #3b82f6; overflow: hidden; }
@@ -26,6 +33,10 @@
         /* Modal Transitions */
         .modal { transition: opacity 0.3s ease-in-out; opacity: 0; pointer-events: none; }
         .modal.open { opacity: 1; pointer-events: auto; }
+
+        /* Button Animations */
+        @keyframes pulse-green { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        .btn-success { background-color: #22c55e !important; animation: pulse-green 0.3s ease-in-out; }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden text-slate-800">
@@ -33,20 +44,19 @@
     <nav class="bg-white shadow border-b px-4 py-3 flex justify-between items-center z-50 relative">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600 w-6 h-6"></i>
-            <h1 class="font-bold text-lg tracking-tight">English Online <span class="text-xs font-normal text-gray-400">v4.1</span></h1>
+            <h1 class="font-bold text-lg tracking-tight">English Online <span class="text-xs font-normal text-gray-400">v5.2</span></h1>
         </div>
         <div class="flex items-center gap-3">
             <span id="roomBadge" class="hidden text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-500">Room: <span id="navRoomId">--</span></span>
-            
             <button onclick="window.toggleSettings()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2 rounded-full transition relative group">
                 <i data-lucide="settings" class="w-5 h-5"></i>
             </button>
         </div>
     </nav>
 
-    <div id="errorBanner" class="hidden absolute top-16 left-4 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-3 rounded shadow-lg z-[100] text-sm flex justify-between items-center">
-        <span id="errorText">Error message here.</span>
-        <button onclick="this.parentElement.classList.add('hidden')"><i data-lucide="x" class="w-4 h-4"></i></button>
+    <div id="toastBanner" class="hidden absolute top-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-xl z-[100] text-sm font-bold flex items-center gap-2 transition-all">
+        <i id="toastIcon" data-lucide="info"></i>
+        <span id="toastText">Message</span>
     </div>
 
     <main class="flex-1 relative overflow-hidden bg-slate-50">
@@ -83,10 +93,10 @@
 
             <div id="gameStartArea" class="hidden animate-bounce">
                  <button onclick="window.startGame()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold py-4 px-12 rounded-full shadow-lg flex items-center gap-3 transition">
-                    <i data-lucide="play-circle" class="w-8 h-8"></i> GAME START
+                    <i data-lucide="play-circle" class="w-8 h-8"></i> SHUFFLE & START!
                 </button>
             </div>
-            <p id="waitingText" class="text-gray-400 italic text-sm">Waiting for setup (Open Settings ⚙️ to create cards)</p>
+            <p id="waitingText" class="text-gray-400 italic text-sm">Waiting for setup...</p>
         </div>
 
         <div id="sceneGame" class="hidden h-full flex flex-col md:flex-row">
@@ -119,10 +129,10 @@
             <div class="p-6 overflow-y-auto space-y-8">
                 
                 <section>
-                    <h4 class="font-bold text-gray-700 mb-2 border-l-4 border-blue-500 pl-2">1. Create Cards (Excel Copy-Paste)</h4>
-                    <p class="text-xs text-gray-500 mb-2">Format: English [TAB] Japanese.</p>
+                    <h4 class="font-bold text-gray-700 mb-2 border-l-4 border-blue-500 pl-2">1. Create Cards</h4>
+                    <p class="text-xs text-gray-500 mb-2">Paste Excel columns (English [TAB] Japanese)</p>
                     <textarea id="wordListInput" class="w-full h-32 p-3 border rounded-lg font-mono text-sm bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-200 outline-none resize-y" placeholder="Apple    りんご&#10;Banana    バナナ"></textarea>
-                    <button onclick="window.updateCards()" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg shadow flex justify-center items-center gap-2">
+                    <button id="btnGenerate" onclick="window.updateCards()" class="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow flex justify-center items-center gap-2 transition-all">
                         <i data-lucide="save" class="w-4 h-4"></i> Generate Cards & Sync
                     </button>
                 </section>
@@ -132,11 +142,9 @@
                     <div class="grid grid-cols-2 gap-4">
                         <button onclick="window.resetGame()" class="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 border border-yellow-200 font-bold py-3 rounded-lg flex flex-col items-center justify-center gap-1 text-sm">
                             <i data-lucide="rotate-ccw" class="w-5 h-5"></i> Restart Game
-                            <span class="text-[10px] font-normal opacity-75">Keep players, reset cards</span>
                         </button>
                         <button onclick="window.destroyRoom()" class="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 font-bold py-3 rounded-lg flex flex-col items-center justify-center gap-1 text-sm">
                             <i data-lucide="trash-2" class="w-5 h-5"></i> DESTROY ROOM
-                            <span class="text-[10px] font-normal opacity-75">Kick everyone & Delete data</span>
                         </button>
                     </div>
                 </section>
@@ -164,11 +172,7 @@
         };
 
         let app, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            console.log("Firebase OK");
-        } catch(e) { alert("Firebase Error: " + e.message); }
+        try { app = initializeApp(firebaseConfig); db = getFirestore(app); } catch(e) { console.error(e); }
 
         // --- STATE ---
         let myId = localStorage.getItem('nico_player_id') || `p_${Math.random().toString(36).substr(2,9)}`;
@@ -177,6 +181,7 @@
         let roomId = "";
         let currentData = null;
         let unsubscribe = null;
+        let hasAutoOpenedSettings = false; 
 
         // --- DOM ELEMENTS ---
         const scenes = {
@@ -196,10 +201,12 @@
             turnInd: document.getElementById('turnIndicator'),
             turnBadge: document.getElementById('turnBadge'),
             scoreBoard: document.getElementById('scoreBoard'),
-            adminList: document.getElementById('adminPlayerList')
+            adminList: document.getElementById('adminPlayerList'),
+            btnGenerate: document.getElementById('btnGenerate'),
+            toast: document.getElementById('toastBanner'),
+            toastText: document.getElementById('toastText')
         };
 
-        // --- INIT ---
         window.onload = () => {
             lucide.createIcons();
             const saved = localStorage.getItem('nico_last_words');
@@ -212,7 +219,7 @@
         window.startApp = async () => {
             const nameIn = document.getElementById('playerName').value.trim();
             const roomIn = document.getElementById('roomName').value.trim();
-            if(!nameIn || !roomIn) { alert("Please enter Name and Room ID"); return; }
+            if(!nameIn || !roomIn) { showToast("Please enter Name and Room ID"); return; }
             myName = nameIn;
             roomId = roomIn;
             localStorage.setItem('nico_name', myName);
@@ -227,6 +234,7 @@
             try {
                 const snap = await getDoc(roomRef);
                 const me = { id: myId, name: myName, score: 0 };
+                
                 if (!snap.exists()) {
                     await setDoc(roomRef, {
                         status: 'lobby',
@@ -249,17 +257,20 @@
                         await updateDoc(roomRef, { players: arrayUnion(me) });
                     }
                 }
+
                 unsubscribe = onSnapshot(roomRef, (docSnap) => {
-                    if(!docSnap.exists()) {
-                        alert("Room was deleted by Admin.");
-                        location.reload();
-                        return;
-                    }
+                    if(!docSnap.exists()) { showToast("Room deleted."); location.reload(); return; }
                     const data = docSnap.data();
                     currentData = data;
                     render(data);
+
+                    if (!hasAutoOpenedSettings && (!data.cards || data.cards.length === 0)) {
+                        hasAutoOpenedSettings = true;
+                        window.toggleSettings(); 
+                        showToast("Please Create Cards!");
+                    }
                 });
-            } catch (e) { console.error(e); alert("Connection Error: " + e.message); }
+            } catch (e) { showToast("Error: " + e.message); }
         }
 
         // --- RENDERING ---
@@ -282,6 +293,7 @@
             } else {
                 els.startBtn.classList.add('hidden');
                 els.waitText.classList.remove('hidden');
+                els.waitText.textContent = "Waiting for cards... (Check Settings ⚙️)";
             }
 
             if(data.status === 'playing') renderGame(data);
@@ -331,26 +343,15 @@
             });
         }
 
-        // --- GAME LOGIC (FIXED) ---
+        // --- GAME LOGIC ---
         window.handleCardClick = async (idx) => {
-            if(!currentData) { console.error("No data"); return; }
+            if(!currentData) return;
             const d = currentData;
             const currentPlayer = d.players[d.turn];
 
-            // 1. Validate Data
-            if (!currentPlayer) {
-                showError("Data Sync Error. Please Reset Game.");
-                return;
-            }
-
-            // 2. Turn Check (Allow if Solo)
+            if (!currentPlayer) { showToast("Data Sync Error. Reset Game."); return; }
             const isSoloPlay = d.players.length === 1;
-            if (!isSoloPlay && currentPlayer.id !== myId) {
-                showError(`It is ${currentPlayer.name}'s turn!`);
-                return;
-            }
-
-            // 3. Status Check
+            if (!isSoloPlay && currentPlayer.id !== myId) { showToast(`It is ${currentPlayer.name}'s turn!`); return; }
             if (d.flipped.length >= 2) return;
             if (d.cards[idx].flipped || d.cards[idx].matched) return;
 
@@ -369,7 +370,7 @@
                         await checkMatch(newCards, newFlipped, d);
                     }, 1500);
                 }
-            } catch (e) { showError("Error: " + e.message); }
+            } catch (e) { showToast("Error: " + e.message); }
         };
 
         async function checkMatch(currentCards, flippedIndices, d) {
@@ -382,12 +383,10 @@
             let newPlayers = [...d.players];
 
             if(c1.pairId === c2.pairId) {
-                // Match
                 c1.matched = true;
                 c2.matched = true;
                 newPlayers[d.turn].score = (newPlayers[d.turn].score || 0) + 1;
             } else {
-                // Miss
                 c1.flipped = false;
                 c2.flipped = false;
                 nextTurn = (d.turn + 1) % d.players.length;
@@ -412,6 +411,11 @@
             const raw = document.getElementById('wordListInput').value;
             localStorage.setItem('nico_last_words', raw);
             
+            const btn = els.btnGenerate;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i> Success!`;
+            btn.classList.add('btn-success');
+
             const lines = raw.split('\n');
             let deck = [];
             let pairCount = 0;
@@ -430,7 +434,12 @@
                 }
             });
 
-            if(deck.length < 4) { alert("Please provide at least 2 pairs."); return; }
+            if(deck.length < 4) { 
+                showToast("Please provide at least 2 pairs."); 
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                return; 
+            }
 
             for (let i = deck.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -448,27 +457,56 @@
                 const resetPlayers = currentData.players.map(p => ({...p, score: 0}));
                 await updateDoc(doc(db, "rooms", roomId), { players: resetPlayers });
             }
-            alert(`Cards updated! (${pairCount} pairs)`);
-            window.toggleSettings();
+            
+            setTimeout(() => {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                window.toggleSettings();
+            }, 1000);
         };
 
+        // SHUFFLE START LOGIC
         window.startGame = async () => {
-            await updateDoc(doc(db, "rooms", roomId), { status: 'playing' });
+            if(!currentData || !currentData.players) return;
+            
+            let players = [...currentData.players];
+            for (let i = players.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [players[i], players[j]] = [players[j], players[i]];
+            }
+
+            showToast("Shuffling players...");
+
+            await updateDoc(doc(db, "rooms", roomId), {
+                status: 'playing',
+                players: players,
+                turn: 0
+            });
         };
 
+        // ★ UPDATED: RESTART LOGIC (NOW SHUFFLES PLAYERS)
         window.resetGame = async () => {
-            if(!confirm("Restart game? (Scores will be reset)")) return;
+            if(!confirm("Restart game? (Shuffle players & cards)")) return;
+            
+            // 1. Shuffle Cards
             let deck = [...currentData.cards];
             deck.forEach(c => { c.flipped = false; c.matched = false; });
-             for (let i = deck.length - 1; i > 0; i--) {
+            for (let i = deck.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [deck[i], deck[j]] = [deck[j], deck[i]];
             }
-            const resetPlayers = currentData.players.map(p => ({...p, score: 0}));
+
+            // 2. Shuffle Players
+            let players = currentData.players.map(p => ({...p, score: 0}));
+            for (let i = players.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [players[i], players[j]] = [players[j], players[i]];
+            }
+
             await updateDoc(doc(db, "rooms", roomId), {
                 status: 'playing',
                 cards: deck,
-                players: resetPlayers,
+                players: players,
                 flipped: [],
                 turn: 0
             });
@@ -476,7 +514,7 @@
         };
 
         window.destroyRoom = async () => {
-            if(!confirm("⚠️ DANGER: Kick all & Delete?")) return;
+            if(!confirm("⚠️ DANGER: Delete room?")) return;
             await deleteDoc(doc(db, "rooms", roomId)); 
             location.reload();
         };
@@ -487,14 +525,10 @@
             await updateDoc(doc(db, "rooms", roomId), { players: newP });
         };
 
-        function showError(msg) {
-            const banner = document.getElementById('errorBanner');
-            const text = document.getElementById('errorText');
-            if(banner && text) {
-                text.textContent = msg;
-                banner.classList.remove('hidden');
-                setTimeout(() => banner.classList.add('hidden'), 3000);
-            } else { alert(msg); }
+        function showToast(msg) {
+            els.toastText.textContent = msg;
+            els.toast.classList.remove('hidden');
+            setTimeout(() => els.toast.classList.add('hidden'), 3000);
         }
     </script>
 </body>
