@@ -3,9 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Concentration Online v3.1</title>
+    <title>English Online v3.2 (Debug)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            alert("Error: " + msg + "\nLine: " + line);
+            return false;
+        };
+    </script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Roboto:wght@400;700&display=swap');
         body { font-family: 'Roboto', 'Noto Sans JP', sans-serif; background-color: #f0f4f8; user-select: none; }
@@ -18,8 +26,6 @@
         .card-back { background-color: white; color: #1f2937; transform: rotateY(180deg); border: 3px solid #3b82f6; overflow: hidden; }
         .card-text { font-size: clamp(0.8rem, 100%, 1.4rem); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
         .active-player { border-left: 6px solid #3b82f6; background-color: #eff6ff; transform: scale(1.02); }
-        .my-turn-alert { animation: pulse-border 2s infinite; border: 2px solid #ef4444; }
-        @keyframes pulse-border { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden bg-slate-50">
@@ -27,7 +33,7 @@
     <nav class="bg-white shadow-sm border-b p-4 flex justify-between items-center z-10">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600"></i>
-            <h1 class="font-bold text-gray-800">English Online (v3.1)</h1>
+            <h1 class="font-bold text-gray-800">English Online (v3.2)</h1>
         </div>
         <div class="flex gap-2 items-center">
             <div id="hostNavControls" class="hidden flex gap-2">
@@ -77,7 +83,7 @@
                     </div>
                 </div>
 
-                <button onclick="window.startApp()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
+                <button id="enterBtn" onclick="window.startApp()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
                     Enter Room <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 </button>
             </div>
@@ -181,21 +187,22 @@
           measurementId: "G-D3GC22P1P5"
         };
 
+        // --- GLOBAL VARIABLES ---
         let app, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            console.log("Firebase initialized");
-        } catch (e) {
-            showError("Firebase Init Error: " + e.message);
-        }
-
-        // GLOBALS
         let currentRoomId = "";
         let myName = "";
         let myPlayerId = "";
         let isHostMode = false; 
         let localState = null;
+
+        // --- INIT ---
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            console.log("Firebase initialized");
+        } catch (e) {
+            alert("Firebase Error: " + e.message);
+        }
 
         // Persist User ID
         const storedId = localStorage.getItem('nico_player_id');
@@ -217,9 +224,9 @@ Can you help me?\t私を手伝ってくれますか？
 This is the book I bought yesterday.\tこれは私が昨日買った本です。
 It is important to study English.\t英語を勉強することは大切です。`;
 
-        // --- CORE FUNCTIONS (Hoisted) ---
-        
-        function switchScene(sceneName) {
+        // --- FUNCTIONS ATTACHED TO WINDOW ---
+
+        window.switchScene = function(sceneName) {
             Object.values(scenes).forEach(el => el.classList.add('hidden'));
             if(scenes[sceneName]) scenes[sceneName].classList.remove('hidden');
             
@@ -232,23 +239,371 @@ It is important to study English.\t英語を勉強することは大切です。
                 statusDiv.className = 'text-xs px-2 py-1 rounded bg-green-100 text-green-600 font-bold animate-pulse';
             }
             
-            // If going to Admin, update the list
+            // If going to Admin, update list immediately if we have data
             if (sceneName === 'admin' && localState) {
                 renderAdminList(localState);
             }
-        }
-        window.switchScene = switchScene; // Expose to window
+        };
 
         window.startApp = async () => {
+            const btn = document.getElementById('enterBtn');
+            btn.textContent = "Connecting...";
+            btn.disabled = true;
+
             myName = document.getElementById('playerName').value.trim();
             currentRoomId = document.getElementById('roomName').value.trim();
             isHostMode = document.getElementById('isTeacherMode').checked; 
 
-            if (!myName || !currentRoomId) { alert("Please enter Name and Room ID."); return; }
+            if (!myName || !currentRoomId) { 
+                alert("Please enter Name and Room ID."); 
+                btn.textContent = "Enter Room";
+                btn.disabled = false;
+                return; 
+            }
 
             try {
                 localStorage.setItem('nico_concentration_name', myName);
                 localStorage.setItem('nico_concentration_room', currentRoomId);
                 await joinRoomLogic();
             } catch (e) {
-                console.error(
+                console.error(e);
+                showError("Join Error: " + e.message);
+                btn.textContent = "Enter Room";
+                btn.disabled = false;
+            }
+        };
+
+        window.forceResetRoom = async () => {
+            if (!confirm("⚠️ RESET ROOM (FORCE)?\n\nThis will KICK ALL players and reset everything.")) return;
+            try {
+                const roomRef = doc(db, "rooms", currentRoomId);
+                const me = { id: myPlayerId, name: myName, score: 0, isSpectator: true };
+                await setDoc(roomRef, {
+                    status: 'lobby',
+                    players: [me], 
+                    hostId: myPlayerId,
+                    cards: [],
+                    setupComplete: false,
+                    turnIndex: 0,
+                    flippedIndices: [],
+                    lastUpdated: Date.now()
+                });
+                alert("Room Reset!");
+                if(isHostMode) window.switchScene('admin'); 
+            } catch(e) {
+                showError("Reset Error: " + e.message);
+            }
+        };
+
+        window.saveGameSettings = async () => {
+            try {
+                const rawText = document.getElementById('gameWordsInput').value.trim();
+                const lines = rawText.split('\n');
+                let cards = [];
+                let pairId = 0;
+                lines.forEach((line) => {
+                    let parts = line.split('\t');
+                    if (parts.length < 2 && line.includes(',')) {
+                         const commaIndex = line.indexOf(',');
+                         if (commaIndex !== -1) parts = [line.substring(0, commaIndex), line.substring(commaIndex + 1)];
+                    }
+                    if (parts.length >= 2) {
+                        const en = parts[0].trim();
+                        const jp = parts[1].trim();
+                        if (en && jp) {
+                            cards.push({ id: 0, pairId: pairId, text: en, type: 'en', isFlipped: false, isMatched: false });
+                            cards.push({ id: 0, pairId: pairId, text: jp, type: 'jp', isFlipped: false, isMatched: false });
+                            pairId++;
+                        }
+                    }
+                });
+                if (cards.length < 4) { alert("Need at least 2 pairs."); return; }
+                for (let i = cards.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [cards[i], cards[j]] = [cards[j], cards[i]];
+                }
+                cards.forEach((c, i) => c.id = i);
+
+                const roomRef = doc(db, "rooms", currentRoomId);
+                const hostParticipates = document.getElementById('hostParticipates').checked;
+                
+                const snap = await getDoc(roomRef);
+                const currentPlayers = snap.exists() ? snap.data().players : [];
+                const updatedPlayers = currentPlayers.map(p => {
+                    if (p.id === myPlayerId) return { ...p, isSpectator: !hostParticipates };
+                    return p;
+                });
+
+                await updateDoc(roomRef, {
+                    cards: cards,
+                    setupComplete: true,
+                    players: updatedPlayers
+                });
+                alert("Cards Updated! Students can now start.");
+
+            } catch(e) {
+                showError("Save Error: " + e.message);
+            }
+        };
+
+        window.goToGameView = () => {
+            window.switchScene('game');
+        };
+
+        window.startGame = async () => {
+            try {
+                const roomRef = doc(db, "rooms", currentRoomId);
+                let firstTurn = 0;
+                const players = localState.players;
+                while(firstTurn < players.length && players[firstTurn].isSpectator) {
+                    firstTurn++;
+                }
+                await updateDoc(roomRef, {
+                    status: 'playing',
+                    turnIndex: firstTurn,
+                    flippedIndices: []
+                });
+            } catch(e) {
+                showError("Start Error: " + e.message);
+            }
+        }
+
+        window.handleCardClick = async (idx) => {
+            if (!localState) return;
+            const data = localState;
+            const currentPlayer = data.players[data.turnIndex];
+            if (currentPlayer.id !== myPlayerId) return; 
+            if (data.flippedIndices.length >= 2) return; 
+            if (data.cards[idx].isFlipped || data.cards[idx].isMatched) return; 
+            try {
+                const roomRef = doc(db, "rooms", currentRoomId);
+                const newCards = [...data.cards];
+                newCards[idx].isFlipped = true;
+                const newFlipped = [...data.flippedIndices, idx];
+                await updateDoc(roomRef, { cards: newCards, flippedIndices: newFlipped });
+                if (newFlipped.length === 2) {
+                    setTimeout(async () => {
+                        await processMatch(roomRef, newCards, newFlipped, data);
+                    }, 1500); 
+                }
+            } catch(e) { console.error(e); }
+        };
+
+        // --- LOGIC ---
+        async function joinRoomLogic() {
+            const roomRef = doc(db, "rooms", currentRoomId);
+            const snap = await getDoc(roomRef);
+            
+            const playerData = { id: myPlayerId, name: myName, score: 0, isSpectator: isHostMode };
+
+            if (!snap.exists()) {
+                await setDoc(roomRef, {
+                    status: 'lobby',
+                    players: [playerData],
+                    hostId: isHostMode ? myPlayerId : null, 
+                    cards: [],
+                    setupComplete: false,
+                    turnIndex: 0,
+                    flippedIndices: [],
+                    lastUpdated: Date.now()
+                });
+            } else {
+                const data = snap.data();
+                const existing = data.players.find(p => p.id === myPlayerId); 
+                let updatePayload = {};
+
+                if (isHostMode && data.hostId !== myPlayerId) updatePayload.hostId = myPlayerId;
+
+                if (existing) {
+                    if (existing.name !== myName) {
+                        const newPlayers = data.players.map(p => p.id === myPlayerId ? {...p, name: myName} : p);
+                        updatePayload.players = newPlayers;
+                    }
+                } else {
+                    updatePayload.players = arrayUnion(playerData);
+                }
+                if (Object.keys(updatePayload).length > 0) await updateDoc(roomRef, updatePayload);
+            }
+
+            // ★ INITIAL SCENE DECISION ★
+            if (isHostMode) {
+                window.switchScene('admin');
+                document.getElementById('adminRoomName').textContent = currentRoomId;
+            } else {
+                window.switchScene('lobby');
+                document.getElementById('lobbyRoomName').textContent = currentRoomId;
+            }
+
+            const hostNav = document.getElementById('hostNavControls');
+            if (isHostMode) hostNav.classList.remove('hidden');
+            else hostNav.classList.add('hidden');
+
+            onSnapshot(roomRef, (docSnap) => {
+                if (!docSnap.exists()) { alert("Room reset."); location.reload(); return; }
+                const data = docSnap.data();
+                
+                const me = data.players.find(p => p.id === myPlayerId);
+                if (!me) { alert("Disconnected."); location.reload(); return; }
+
+                localState = data;
+
+                // Update List in Admin Panel
+                if (isHostMode && !scenes.admin.classList.contains('hidden')) {
+                     renderAdminList(data);
+                }
+                
+                // Update Game/Lobby views
+                if (!scenes.game.classList.contains('hidden')) renderGame(data);
+                if (!scenes.lobby.classList.contains('hidden')) renderLobby(data);
+
+                // Auto-switch for students (Teacher stays where they are unless they click)
+                if (!isHostMode) {
+                    if (data.status === 'playing') window.switchScene('game');
+                    else window.switchScene('lobby');
+                }
+            }, (error) => { showError("Sync Error: " + error.message); });
+        }
+
+        async function processMatch(roomRef, currentCards, flippedIndices, data) {
+            const idx1 = flippedIndices[0];
+            const idx2 = flippedIndices[1];
+            const card1 = currentCards[idx1];
+            const card2 = currentCards[idx2];
+            let updates = {};
+            if (card1.pairId === card2.pairId) {
+                currentCards[idx1].isMatched = true;
+                currentCards[idx2].isMatched = true;
+                const newPlayers = [...data.players];
+                newPlayers[data.turnIndex].score = (newPlayers[data.turnIndex].score || 0) + 1;
+                updates = { cards: currentCards, players: newPlayers, flippedIndices: [] };
+            } else {
+                currentCards[idx1].isFlipped = false;
+                currentCards[idx2].isFlipped = false;
+                let nextTurn = (data.turnIndex + 1) % data.players.length;
+                let loopCount = 0;
+                while(data.players[nextTurn].isSpectator && loopCount < data.players.length) {
+                    nextTurn = (nextTurn + 1) % data.players.length;
+                    loopCount++;
+                }
+                updates = { cards: currentCards, turnIndex: nextTurn, flippedIndices: [] };
+            }
+            await updateDoc(roomRef, updates);
+        }
+
+        function renderAdminList(data) {
+            const list = document.getElementById('adminPlayerList');
+            list.innerHTML = '';
+            if(!data.players.length) list.innerHTML = '<p class="text-gray-400 text-xs text-center py-4">No players.</p>';
+            
+            data.players.forEach(p => {
+                if (p.id === myPlayerId) return; 
+                
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center bg-white p-3 rounded shadow-sm";
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                         <div class="bg-blue-100 p-1 rounded-full"><i data-lucide="${p.isSpectator ? 'eye' : 'user'}" class="w-4 h-4 text-blue-600"></i></div>
+                         <span class="text-sm font-bold text-gray-700">${p.name}</span>
+                    </div>
+                    <span class="text-xs text-gray-400">${p.score} pts</span>
+                `;
+                list.appendChild(div);
+            });
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function renderLobby(data) {
+            const list = document.getElementById('lobbyPlayerList');
+            list.innerHTML = '';
+            data.players.forEach(p => {
+                const isHostUser = p.id === data.hostId;
+                const isSpectator = p.isSpectator;
+                const div = document.createElement('div');
+                div.className = "bg-gray-100 p-4 rounded-lg flex flex-col items-center justify-center relative";
+                div.innerHTML = `
+                    <div class="bg-white p-3 rounded-full mb-2 shadow-sm relative">
+                        <i data-lucide="${isSpectator ? 'eye' : 'user'}" class="w-6 h-6 ${isSpectator ? 'text-gray-400' : 'text-blue-500'}"></i>
+                    </div>
+                    <span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>
+                    ${isHostUser ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}
+                    ${isSpectator ? '<span class="text-xs text-gray-500 mt-1">(Spectator)</span>' : ''}
+                `;
+                list.appendChild(div);
+            });
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+
+            const setupComplete = data.setupComplete === true;
+            const commonStart = document.getElementById('commonStartArea');
+            const waitMsg = document.getElementById('waitingMessage');
+
+            if (setupComplete) {
+                commonStart.classList.remove('hidden');
+                waitMsg.classList.add('hidden');
+            } else {
+                commonStart.classList.add('hidden');
+                waitMsg.classList.remove('hidden');
+            }
+        }
+
+        function renderGame(data) {
+            const currentPlayer = data.players[data.turnIndex];
+            const indicator = document.getElementById('gameTurnIndicator');
+            if(currentPlayer) {
+                indicator.textContent = currentPlayer.name;
+                const isMyTurn = currentPlayer.id === myPlayerId;
+                if (isMyTurn) {
+                    indicator.classList.add('bg-green-100', 'text-green-700', 'my-turn-alert');
+                    indicator.textContent += " (YOU!)";
+                } else {
+                    indicator.classList.remove('bg-green-100', 'text-green-700', 'my-turn-alert');
+                }
+            }
+            const sb = document.getElementById('gameScoreBoard');
+            sb.innerHTML = '';
+            data.players.forEach((p, idx) => {
+                if (p.isSpectator) return; 
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-lg border flex justify-between items-center ${idx === data.turnIndex ? 'active-player' : 'bg-white'}`;
+                div.innerHTML = `<span class="text-sm font-bold truncate">${p.name}</span><span class="text-xl font-bold">${p.score || 0}</span>`;
+                sb.appendChild(div);
+            });
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+            data.cards.forEach((card, idx) => {
+                const container = document.createElement('div');
+                container.className = `card-container ${card.isFlipped ? 'flipped' : ''} ${card.isMatched ? 'matched-visible' : ''}`;
+                container.onclick = () => window.handleCardClick(idx); 
+                const inner = document.createElement('div');
+                inner.className = 'card-inner bg-white';
+                const front = document.createElement('div');
+                front.className = 'card-front';
+                front.innerHTML = `<span class="font-bold opacity-80">${idx + 1}</span>`;
+                const back = document.createElement('div');
+                back.className = 'card-back';
+                back.innerHTML = `<span class="card-text text-center">${card.text}</span>`;
+                inner.appendChild(front);
+                inner.appendChild(back);
+                container.appendChild(inner);
+                grid.appendChild(container);
+            });
+        }
+
+        function showError(msg) {
+            const banner = document.getElementById('errorBanner');
+            const text = document.getElementById('errorText');
+            text.textContent = msg;
+            banner.classList.remove('hidden');
+            setTimeout(() => banner.classList.add('hidden'), 5000);
+        }
+
+        window.onload = () => {
+            const savedName = localStorage.getItem('nico_concentration_name');
+            const savedRoom = localStorage.getItem('nico_concentration_room');
+            if (savedName) document.getElementById('playerName').value = savedName;
+            if (savedRoom) document.getElementById('roomName').value = savedRoom;
+            document.getElementById('gameWordsInput').value = defaultWords;
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+    </script>
+</body>
+</html>
