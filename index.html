@@ -3,86 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Game Final Fix</title>
+    <title>Simple Concentration</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <style>
-        body { font-family: sans-serif; background: #f3f4f6; }
-        .card { perspective: 1000px; aspect-ratio: 4/3; cursor: pointer; }
-        .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; }
-        .flipped .card-inner { transform: rotateY(180deg); }
-        .front, .back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 8px; padding: 4px; border: 2px solid #ccc; font-weight: bold; }
-        .front { background: #3b82f6; color: white; font-size: 24px; }
-        .back { background: white; color: black; transform: rotateY(180deg); font-size: 14px; }
-        .matched .front { background: #10b981; border-color: #10b981; } 
-        .active-turn { border: 4px solid #f59e0b; background: #fef3c7; }
+        body { font-family: sans-serif; background-color: #f3f4f6; user-select: none; }
+        
+        /* カードのスタイル */
+        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.5rem; max-width: 800px; margin: 0 auto; }
+        .card { aspect-ratio: 3/4; cursor: pointer; perspective: 1000px; }
+        .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.4s; transform-style: preserve-3d; }
+        .card.flipped .card-inner { transform: rotateY(180deg); }
+        
+        .front, .back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 2px solid #e5e7eb; font-weight: bold; padding: 4px; word-break: break-all; font-size: 0.9rem; }
+        .front { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; font-size: 1.5rem; }
+        .back { background: white; color: #1f2937; transform: rotateY(180deg); border-color: #2563eb; }
+        
+        .card.matched .back { background-color: #dcfce7; border-color: #22c55e; }
+        .active-turn { border: 2px solid #f59e0b; background-color: #fffbeb; }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
-    <div id="loginScreen" class="fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
-        <div class="bg-white p-8 rounded shadow-lg w-full max-w-sm space-y-4">
-            <h2 class="text-2xl font-bold text-center">Login</h2>
-            <div>
-                <label class="block text-xs font-bold text-gray-500">NAME</label>
-                <input type="text" id="myName" class="w-full border p-2 rounded" placeholder="Taro">
-            </div>
-            <div>
-                <label class="block text-xs font-bold text-gray-500">ROOM ID</label>
-                <input type="text" id="myRoom" class="w-full border p-2 rounded" placeholder="1-1">
-            </div>
-            
-            <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
-                <label class="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" id="isTeacher" class="w-5 h-5">
-                    <span class="font-bold text-sm">私は先生です (設定・リセット権限)</span>
-                </label>
-            </div>
+    <div id="startScreen" class="fixed inset-0 bg-gray-100 flex items-center justify-center z-50">
+        
+        <button onclick="toggleSettings()" class="absolute top-4 right-4 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded shadow flex items-center gap-2 font-bold">
+            <span>⚙️ カード設定</span>
+        </button>
 
-            <button onclick="join()" class="w-full bg-blue-600 text-white font-bold py-3 rounded">JOIN ROOM</button>
+        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm text-center space-y-4">
+            <h1 class="text-2xl font-bold text-blue-600">神経衰弱 ONLINE</h1>
+            <input type="text" id="inputName" class="w-full border-2 border-gray-200 p-3 rounded-lg focus:border-blue-500 outline-none" placeholder="名前 (例: タロウ)">
+            <input type="text" id="inputRoom" class="w-full border-2 border-gray-200 p-3 rounded-lg focus:border-blue-500 outline-none" placeholder="ルームID (例: 1-1)">
+            <button onclick="enterRoom()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow transition">
+                Enter (対戦ルームへ)
+            </button>
         </div>
     </div>
 
-    <div id="mainScreen" class="hidden flex-1 flex flex-col">
-        <div class="bg-white p-3 shadow flex justify-between items-center">
-            <h1 class="font-bold text-gray-700">Room: <span id="dispRoom"></span></h1>
-            
-            <div id="teacherControls" class="hidden flex gap-2">
-                <button onclick="resetRoom()" class="bg-red-600 text-white text-xs px-4 py-2 rounded font-bold">
-                    全員キック＆リセット
-                </button>
+    <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-lg w-full max-w-lg space-y-4">
+            <h2 class="text-xl font-bold">カードの設定</h2>
+            <p class="text-xs text-gray-500">設定したいルームIDを入力し、単語リストを貼り付けてください。</p>
+            <input type="text" id="settingRoomId" class="w-full border p-2 rounded" placeholder="対象のルームID">
+            <textarea id="wordList" class="w-full h-40 border p-2 font-mono text-sm" placeholder="Apple [TAB] りんご&#10;Dog [TAB] いぬ"></textarea>
+            <div class="flex gap-2">
+                <button onclick="saveCards()" class="flex-1 bg-green-600 text-white font-bold py-2 rounded">保存して閉じる</button>
+                <button onclick="toggleSettings()" class="flex-1 bg-gray-300 text-gray-700 font-bold py-2 rounded">キャンセル</button>
             </div>
+        </div>
+    </div>
+
+    <div id="gameScreen" class="hidden flex-1 flex flex-col overflow-hidden">
+        <div class="bg-white p-4 shadow-sm flex justify-between items-center z-10">
+            <div class="font-bold text-gray-700">Room: <span id="dispRoom" class="text-blue-600"></span></div>
+            <button onclick="restartGame()" class="bg-red-500 hover:bg-red-600 text-white text-sm font-bold px-4 py-2 rounded shadow">
+                ゲームをリスタート
+            </button>
         </div>
 
         <div class="flex-1 overflow-y-auto p-4">
+            <div id="turnInfo" class="text-center mb-4 text-xl font-bold text-gray-600">--</div>
             
-            <div id="settingsPanel" class="hidden bg-white p-4 rounded shadow mb-4 border-l-4 border-yellow-400">
-                <h3 class="font-bold mb-2">単語設定 (English [TAB] Japanese)</h3>
-                <textarea id="wordList" class="w-full h-32 border p-2 text-sm font-mono mb-2 bg-gray-50"></textarea>
-                <button onclick="startGame()" class="w-full bg-green-600 text-white font-bold py-2 rounded">
-                    設定を保存してゲーム開始！
-                </button>
-            </div>
-
-            <div id="statusMsg" class="text-center py-10 text-xl text-gray-500 hidden">
-                先生が準備中です...
-            </div>
-
-            <div id="gameInfo" class="hidden mb-4 text-center">
-                Turn: <span id="turnName" class="font-bold text-xl text-blue-600">--</span>
-            </div>
-
-            <div id="grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2 max-w-4xl mx-auto"></div>
+            <div id="gameGrid" class="card-grid mb-8"></div>
             
-            <div id="playerList" class="mt-8 flex flex-wrap gap-2 justify-center"></div>
+            <div class="flex justify-center">
+                <div id="playerList" class="flex flex-wrap gap-2 justify-center max-w-2xl"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        // CONFIG
+        // --- CONFIGURATION ---
         const firebaseConfig = {
             apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
             authDomain: "concentration-2cb8a.firebaseapp.com",
@@ -91,74 +86,66 @@
             messagingSenderId: "1034581366776",
             appId: "1:1034581366776:web:e46d84210c3eacba3ae80d"
         };
+        
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // VARS
-        let myId = "u_" + Date.now();
-        let name = "", room = "";
-        let amITeacher = false;
-        let currentData = null;
+        // --- STATE ---
+        let myId = localStorage.getItem('my_uid') || 'u_' + Date.now();
+        localStorage.setItem('my_uid', myId);
+        let myName = "";
+        let currentRoom = "";
+        let localState = null;
 
-        // --- ACTIONS ---
+        // --- FUNCTIONS ---
 
-        async function join() {
-            name = document.getElementById('myName').value.trim();
-            room = document.getElementById('myRoom').value.trim();
-            amITeacher = document.getElementById('isTeacher').checked;
+        // 1. Enter Room
+        async function enterRoom() {
+            myName = document.getElementById('inputName').value.trim();
+            currentRoom = document.getElementById('inputRoom').value.trim();
+            
+            if(!myName || !currentRoom) return alert("名前とルームIDを入力してください");
 
-            if(!name || !room) return alert("名前と部屋名を入力してください");
+            // UI Switch
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('hidden');
+            document.getElementById('dispRoom').textContent = currentRoom;
 
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('mainScreen').classList.remove('hidden');
-            document.getElementById('dispRoom').textContent = room;
-
-            const roomRef = db.collection('rooms').doc(room);
-            const me = { id: myId, name: name, score: 0 };
+            const roomRef = db.collection('rooms').doc(currentRoom);
+            const me = { id: myId, name: myName, score: 0 };
 
             try {
-                // Room Check
-                const docSnap = await roomRef.get();
-                
-                if (!docSnap.exists) {
-                    // Create New Room
-                    await roomRef.set({
-                        hostId: amITeacher ? myId : null,
-                        players: [me],
-                        status: 'lobby',
-                        cards: [],
-                        turn: 0,
-                        flipped: []
-                    });
-                } else {
-                    // Join Existing
-                    const data = docSnap.data();
-                    let updates = {
-                        players: firebase.firestore.FieldValue.arrayUnion(me)
-                    };
-                    // ★強制乗っ取りロジック★
-                    // 「私は先生です」にチェックが入っていれば、強制的にホストIDを自分にする
-                    if (amITeacher) {
-                        updates.hostId = myId;
-                        updates.status = 'lobby'; // 先生が来たら一旦ロビーに戻す（設定するため）
+                // Room Check & Creation
+                await db.runTransaction(async (t) => {
+                    const doc = await t.get(roomRef);
+                    if (!doc.exists) {
+                        t.set(roomRef, {
+                            players: [me],
+                            cards: [], 
+                            turn: 0,
+                            flipped: [],
+                            status: 'waiting'
+                        });
+                    } else {
+                        // Join existing
+                        const data = doc.data();
+                        const players = data.players || [];
+                        const existingIdx = players.findIndex(p => p.id === myId);
+                        
+                        if (existingIdx >= 0) {
+                            players[existingIdx].name = myName; // Update name
+                        } else {
+                            players.push(me);
+                        }
+                        t.update(roomRef, { players: players });
                     }
-                    await roomRef.update(updates);
-                }
+                });
 
-                // LISTEN
+                // Realtime Listener
                 roomRef.onSnapshot(snap => {
-                    if(!snap.exists) { alert("部屋が削除されました"); location.reload(); return; }
-                    const d = snap.data();
-                    currentData = d;
-                    
-                    // 自分が消されていたらリロード（キック対応）
-                    if(!d.players.find(p => p.id === myId)) {
-                        alert("退出させられました");
-                        location.reload();
-                        return;
-                    }
-
-                    render(d);
+                    if(!snap.exists) return alert("ルームがリセットされました");
+                    localState = snap.data();
+                    renderGame(localState);
                 });
 
             } catch(e) {
@@ -167,159 +154,169 @@
             }
         }
 
-        async function resetRoom() {
-            if(!confirm("本当に全員をキックしてリセットしますか？")) return;
-            // 自分だけ残してリセット
-            const me = { id: myId, name: name, score: 0 };
-            await db.collection('rooms').doc(room).set({
-                hostId: myId,
-                players: [me],
-                status: 'lobby',
-                cards: [],
-                turn: 0,
-                flipped: []
-            });
+        // 2. Settings (Top Right)
+        function toggleSettings() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.toggle('hidden');
+            // Auto-fill room ID if user typed it in main screen
+            const mainInput = document.getElementById('inputRoom').value;
+            if(mainInput) document.getElementById('settingRoomId').value = mainInput;
         }
 
-        async function startGame() {
-            const text = document.getElementById('wordList').value;
-            const lines = text.trim().split('\n');
+        async function saveCards() {
+            const targetRoom = document.getElementById('settingRoomId').value.trim();
+            const text = document.getElementById('wordList').value.trim();
+            
+            if(!targetRoom) return alert("ルームIDを指定してください");
+            
+            const lines = text.split('\n');
             let cards = [];
             let pid = 0;
-            
+
             lines.forEach(line => {
                 let [a, b] = line.split(/,|\t/);
                 if(a && b) {
-                    cards.push({ id:0, pid:pid, text:a.trim(), open:false, matched:false });
-                    cards.push({ id:0, pid:pid, text:b.trim(), open:false, matched:false });
+                    cards.push({ id:0, pid:pid, text:a.trim(), matched:false });
+                    cards.push({ id:0, pid:pid, text:b.trim(), matched:false });
                     pid++;
                 }
             });
 
-            if(cards.length < 4) return alert("ペアが少なすぎます（2ペア以上必要）");
+            if(cards.length < 4) return alert("ペアが少なすぎます（最低2ペア）");
 
             // Shuffle
             cards.sort(() => Math.random() - 0.5);
             cards.forEach((c, i) => c.id = i);
 
-            await db.collection('rooms').doc(room).update({
+            // Save to Firestore
+            await db.collection('rooms').doc(targetRoom).set({
                 cards: cards,
-                status: 'playing',
+                flipped: [],
                 turn: 0,
-                flipped: []
+                status: 'playing',
+                // Keep players if exist, else empty
+                players: localState ? localState.players : [] 
+            }, { merge: true });
+
+            toggleSettings();
+            alert(`ルーム[${targetRoom}]にカードをセットしました`);
+        }
+
+        // 3. Restart Game
+        async function restartGame() {
+            if(!confirm("ゲームをリスタートしますか？（点数もリセットされます）")) return;
+            if(!localState || !localState.cards) return;
+
+            // Reset scores
+            const newPlayers = localState.players.map(p => ({...p, score: 0}));
+            // Shuffle cards again
+            let newCards = [...localState.cards];
+            newCards.forEach(c => c.matched = false); // Reset match status
+            newCards.sort(() => Math.random() - 0.5);
+            newCards.forEach((c, i) => c.id = i);
+
+            await db.collection('rooms').doc(currentRoom).update({
+                cards: newCards,
+                players: newPlayers,
+                flipped: [],
+                turn: 0,
+                status: 'playing'
             });
         }
 
-        async function cardClick(idx) {
-            const d = currentData;
-            // ルール判定
+        // 4. Game Logic (Click)
+        async function handleCardClick(idx) {
+            if(!localState) return;
+            const d = localState;
+
+            // Basic Rules
             if(d.status !== 'playing') return;
-            if(d.players[d.turn].id !== myId) return; // 俺のターンじゃない
-            if(d.flipped.length >= 2) return; 
-            if(d.cards[idx].open || d.cards[idx].matched) return;
+            if(!d.cards[idx]) return;
+            if(d.flipped.length >= 2) return; // Wait for match processing
+            if(d.cards[idx].matched) return; // Already matched
+            if(d.flipped.includes(idx)) return; // Already flipped
+            
+            // Check Turn
+            const player = d.players[d.turn];
+            if(player.id !== myId) return; // Not my turn
 
-            // オープン処理
-            let newCards = [...d.cards];
-            newCards[idx].open = true;
-            let newFlipped = [...d.flipped, idx];
-
-            await db.collection('rooms').doc(room).update({
-                cards: newCards,
+            // Flip Card
+            const newFlipped = [...d.flipped, idx];
+            await db.collection('rooms').doc(currentRoom).update({
                 flipped: newFlipped
             });
 
-            // 2枚めくったら判定
+            // Match Logic (Client side trigger, written to DB)
             if(newFlipped.length === 2) {
                 setTimeout(async () => {
                     const i1 = newFlipped[0];
                     const i2 = newFlipped[1];
-                    const c1 = newCards[i1];
-                    const c2 = newCards[i2];
+                    const c1 = d.cards[i1];
+                    const c2 = d.cards[i2];
                     
                     let updates = {};
 
                     if(c1.pid === c2.pid) {
-                        // 正解
+                        // Match!
+                        let newCards = [...d.cards];
                         newCards[i1].matched = true;
                         newCards[i2].matched = true;
-                        let ps = [...d.players];
-                        ps[d.turn].score++;
-                        updates = { cards: newCards, players: ps, flipped: [] };
+                        
+                        let newPlayers = [...d.players];
+                        newPlayers[d.turn].score++;
+                        
+                        updates = { cards: newCards, players: newPlayers, flipped: [] };
                     } else {
-                        // 不正解
-                        newCards[i1].open = false;
-                        newCards[i2].open = false;
-                        let next = (d.turn + 1) % d.players.length;
-                        updates = { cards: newCards, flipped: [], turn: next };
+                        // No Match
+                        let nextTurn = (d.turn + 1) % d.players.length;
+                        updates = { flipped: [], turn: nextTurn };
                     }
-                    await db.collection('rooms').doc(room).update(updates);
+                    
+                    await db.collection('rooms').doc(currentRoom).update(updates);
                 }, 1500);
             }
         }
 
-        // --- RENDER ---
-        function render(d) {
-            const isHost = (d.hostId === myId);
-
-            // 1. Controls (先生だけに見える)
-            if(isHost) {
-                document.getElementById('teacherControls').classList.remove('hidden');
-                // ロビーなら設定パネルを出す
-                if(d.status === 'lobby') {
-                    document.getElementById('settingsPanel').classList.remove('hidden');
-                } else {
-                    document.getElementById('settingsPanel').classList.add('hidden');
-                }
-            } else {
-                document.getElementById('teacherControls').classList.add('hidden');
-                document.getElementById('settingsPanel').classList.add('hidden');
+        // 5. Render
+        function renderGame(d) {
+            // Turn Indicator
+            const p = d.players[d.turn];
+            if(p) {
+                const isMe = p.id === myId;
+                const div = document.getElementById('turnInfo');
+                div.textContent = isMe ? "あなたの番です" : `${p.name} の番です`;
+                div.className = isMe ? "text-center mb-4 text-xl font-bold text-green-600" : "text-center mb-4 text-xl font-bold text-gray-500";
             }
 
-            // 2. Main View Switch
-            const grid = document.getElementById('grid');
-            const statusMsg = document.getElementById('statusMsg');
-            const gameInfo = document.getElementById('gameInfo');
-
-            if(d.status === 'lobby') {
-                grid.innerHTML = '';
-                gameInfo.classList.add('hidden');
-                if(!isHost) {
-                    statusMsg.classList.remove('hidden');
-                    statusMsg.textContent = "先生が単語を設定中です...";
-                } else {
-                    statusMsg.classList.add('hidden');
-                }
+            // Grid
+            const grid = document.getElementById('gameGrid');
+            if(!d.cards || d.cards.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">右上の設定ボタンからカードをセットしてください</div>';
             } else {
-                statusMsg.classList.add('hidden');
-                gameInfo.classList.remove('hidden');
-                
-                // Turn Indicator
-                const p = d.players[d.turn];
-                const isMe = (p.id === myId);
-                const turnName = document.getElementById('turnName');
-                turnName.textContent = p.name + (isMe ? " (あなた)" : "");
-                turnName.style.color = isMe ? "red" : "blue";
-
-                // Draw Grid
-                grid.innerHTML = d.cards.map((c, i) => `
-                    <div class="card ${c.matched ? 'matched' : ''} ${c.open ? 'flipped' : ''}" onclick="cardClick(${i})">
-                        <div class="card-inner">
-                            <div class="front">${i+1}</div>
-                            <div class="back">${c.text}</div>
+                grid.innerHTML = d.cards.map((c, i) => {
+                    const isFlipped = d.flipped.includes(i) || c.matched;
+                    return `
+                        <div class="card ${isFlipped ? 'flipped' : ''} ${c.matched ? 'matched' : ''}" onclick="handleCardClick(${i})">
+                            <div class="card-inner">
+                                <div class="front">${i+1}</div>
+                                <div class="back">${c.text}</div>
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
             }
 
-            // 3. Player List
-            document.getElementById('playerList').innerHTML = d.players.map((p, i) => `
-                <div class="px-3 py-1 rounded bg-white shadow border ${i===d.turn && d.status==='playing' ? 'active-turn' : ''}">
-                    ${p.name}: <b>${p.score}</b>
+            // Players
+            const list = document.getElementById('playerList');
+            list.innerHTML = d.players.map((pl, i) => `
+                <div class="px-4 py-2 rounded shadow bg-white border-2 ${i === d.turn ? 'active-turn border-yellow-400' : 'border-white'}">
+                    <div class="text-sm font-bold text-gray-700">${pl.name}</div>
+                    <div class="text-xl font-bold text-blue-600 text-center">${pl.score}</div>
                 </div>
             `).join('');
         }
 
-        // 初期単語
+        // Default Words for convenience
         document.getElementById('wordList').value = "Apple\tりんご\nDog\tいぬ\nCat\tねこ\nBook\tほん";
     </script>
 </body>
