@@ -3,16 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English Online v3.2 (Debug)</title>
+    <title>English Concentration Final</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <script>
-        window.onerror = function(msg, url, line, col, error) {
-            alert("Error: " + msg + "\nLine: " + line);
-            return false;
-        };
-    </script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Roboto:wght@400;700&display=swap');
@@ -24,159 +20,107 @@
         .card-front, .card-back { position: absolute; width: 100%; height: 100%; -webkit-backface-visibility: hidden; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; border-radius: 0.75rem; padding: 1rem; }
         .card-front { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-size: 2rem; }
         .card-back { background-color: white; color: #1f2937; transform: rotateY(180deg); border: 3px solid #3b82f6; overflow: hidden; }
-        .card-text { font-size: clamp(0.8rem, 100%, 1.4rem); line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
         .active-player { border-left: 6px solid #3b82f6; background-color: #eff6ff; transform: scale(1.02); }
     </style>
 </head>
 <body class="h-screen flex flex-col overflow-hidden bg-slate-50">
 
+    <div id="debugLog" class="fixed bottom-0 right-0 w-64 h-32 bg-black bg-opacity-80 text-green-400 text-xs p-2 overflow-y-auto z-50 pointer-events-none font-mono">
+        System Ready...
+    </div>
+
     <nav class="bg-white shadow-sm border-b p-4 flex justify-between items-center z-10">
         <div class="flex items-center gap-2">
             <i data-lucide="globe" class="text-blue-600"></i>
-            <h1 class="font-bold text-gray-800">English Online (v3.2)</h1>
+            <h1 class="font-bold text-gray-800">English Online (Final)</h1>
         </div>
         <div class="flex gap-2 items-center">
-            <div id="hostNavControls" class="hidden flex gap-2">
-                <button onclick="window.switchScene('admin')" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded flex items-center gap-1">
-                    <i data-lucide="settings" class="w-4 h-4"></i> Admin
-                </button>
-                <button onclick="window.forceResetRoom()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded shadow flex items-center gap-1">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i> RESET
-                </button>
-            </div>
-            <div id="connectionStatus" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">Offline</div>
+            <button id="adminResetBtn" onclick="forceResetRoom()" class="hidden bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-3 py-2 rounded shadow animate-pulse">
+                RESET
+            </button>
+            <div id="connectionStatus" class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-500">Wait...</div>
         </div>
     </nav>
 
-    <div id="errorBanner" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 absolute top-16 left-0 right-0 z-50 text-xs" role="alert">
-        <p class="font-bold">Error</p>
-        <p id="errorText">Something went wrong.</p>
-    </div>
-
     <main class="flex-1 relative overflow-hidden">
         
-        <div id="sceneSetup" class="absolute inset-0 bg-slate-100 z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div id="sceneSetup" class="absolute inset-0 bg-slate-100 z-50 flex items-center justify-center p-4">
             <div class="bg-white max-w-md w-full rounded-xl shadow-xl p-8 space-y-6">
-                <div class="text-center">
-                    <h2 class="text-2xl font-bold text-gray-800">Game Login</h2>
-                    <p class="text-gray-500 text-sm">Join a room to play.</p>
-                </div>
-
+                <h2 class="text-2xl font-bold text-center text-gray-800">Game Login</h2>
                 <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
-                        <input type="text" id="playerName" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-200 outline-none" placeholder="Ex: Taro">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Room Name (ID)</label>
-                        <input type="text" id="roomName" class="w-full border rounded-lg p-3 focus:ring-2 focus:ring-blue-200 outline-none" placeholder="Ex: 1-1">
-                    </div>
-                    
-                    <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <input type="text" id="playerName" class="w-full border rounded p-3" placeholder="Name (Ex: Taro)">
+                    <input type="text" id="roomName" class="w-full border rounded p-3" placeholder="Room ID (Ex: 1-1)">
+                    <div class="bg-blue-50 p-4 rounded border border-blue-100">
                         <label class="flex items-center space-x-3 cursor-pointer">
-                            <input type="checkbox" id="isTeacherMode" class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300">
-                            <div>
-                                <span class="text-sm font-bold text-gray-800">I am the Teacher (Host)</span>
-                                <p class="text-xs text-gray-500">Access Admin Dashboard</p>
-                            </div>
+                            <input type="checkbox" id="isTeacherMode" class="w-5 h-5 text-blue-600">
+                            <span class="text-sm font-bold text-gray-800">I am the Teacher</span>
                         </label>
                     </div>
                 </div>
-
-                <button id="enterBtn" onclick="window.startApp()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition shadow-lg flex items-center justify-center gap-2">
-                    Enter Room <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                </button>
+                <button onclick="startApp()" class="w-full bg-blue-600 text-white font-bold py-3 rounded hover:bg-blue-700">Enter Room</button>
             </div>
         </div>
 
-        <div id="sceneAdmin" class="hidden absolute inset-0 bg-slate-50 z-40 flex flex-col p-4 overflow-y-auto">
-            <div class="max-w-4xl w-full mx-auto space-y-6">
-                <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                        <i data-lucide="settings-2" class="text-gray-600"></i> Teacher Dashboard <span class="text-sm font-normal text-gray-400">(Room: <span id="adminRoomName"></span>)</span>
-                    </h2>
-                    
-                    <div class="grid md:grid-cols-2 gap-6">
-                        <div class="space-y-4">
-                            <h3 class="font-bold text-gray-700 border-b pb-2">1. Card Settings</h3>
-                            <p class="text-xs text-gray-500">Paste Excel data (English [TAB] Japanese)</p>
-                            <textarea id="gameWordsInput" class="w-full h-40 border rounded p-2 text-sm font-mono bg-gray-50 focus:bg-white transition" placeholder="English [TAB] Japanese"></textarea>
-                            
-                            <div class="flex items-center gap-2">
-                                <input type="checkbox" id="hostParticipates" class="w-4 h-4 text-blue-600 rounded">
-                                <label for="hostParticipates" class="text-sm text-gray-700">Participate in game (as player)</label>
-                            </div>
-
-                            <button onclick="window.saveGameSettings()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
-                                <i data-lucide="save" class="w-4 h-4"></i> Update Cards & Ready
-                            </button>
+        <div id="sceneAdmin" class="hidden absolute inset-0 bg-slate-50 z-40 p-4 overflow-y-auto">
+            <div class="max-w-4xl mx-auto bg-white p-6 rounded shadow border space-y-6">
+                <h2 class="text-2xl font-bold">Teacher Dashboard</h2>
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="font-bold border-b pb-2 mb-2">Card Settings</h3>
+                        <textarea id="gameWordsInput" class="w-full h-32 border rounded p-2 text-sm font-mono" placeholder="English [TAB] Japanese"></textarea>
+                        <div class="mt-2 flex gap-2">
+                             <input type="checkbox" id="hostParticipates"> <label for="hostParticipates" class="text-sm">Participate in game</label>
                         </div>
-
-                        <div class="space-y-4">
-                            <div class="flex justify-between items-center border-b pb-2">
-                                <h3 class="font-bold text-gray-700">2. Student List</h3>
-                                <button onclick="window.forceResetRoom()" class="text-xs bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded border border-red-200 flex items-center gap-1">
-                                    <i data-lucide="trash-2" class="w-3 h-3"></i> Kick All
-                                </button>
-                            </div>
-                            <div id="adminPlayerList" class="bg-gray-100 rounded-lg p-2 h-48 overflow-y-auto space-y-2">
-                                <p class="text-gray-400 text-xs text-center py-4">Waiting for students...</p>
-                            </div>
-                            
-                            <div class="pt-4 border-t">
-                                <h3 class="font-bold text-gray-700 mb-2">3. Monitor Game</h3>
-                                <button onclick="window.goToGameView()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg shadow flex items-center justify-center gap-2">
-                                    <i data-lucide="monitor" class="w-4 h-4"></i> Go to Game Room
-                                </button>
-                                <p class="text-xs text-gray-400 mt-2 text-center">Click to watch or join the game.</p>
-                            </div>
+                        <button onclick="saveGameSettings()" class="w-full bg-green-600 text-white font-bold py-2 mt-4 rounded">Update Cards & Ready</button>
+                    </div>
+                    <div>
+                        <div class="flex justify-between border-b pb-2 mb-2">
+                            <h3 class="font-bold">Students</h3>
+                            <button onclick="forceResetRoom()" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">Kick All</button>
                         </div>
+                        <div id="adminPlayerList" class="bg-gray-100 h-32 overflow-y-auto p-2 text-sm"></div>
+                        <button onclick="switchScene('game')" class="w-full bg-indigo-600 text-white font-bold py-2 mt-4 rounded">Go to Game View</button>
                     </div>
                 </div>
             </div>
         </div>
 
         <div id="sceneLobby" class="hidden absolute inset-0 bg-white z-40 flex flex-col items-center justify-center p-4">
-            <div class="max-w-2xl w-full text-center space-y-6">
-                <div>
-                    <h2 class="text-3xl font-bold text-gray-800 mb-2">Room: <span id="lobbyRoomName" class="text-blue-600"></span></h2>
-                    <p class="text-gray-500">Waiting for players...</p>
-                </div>
-
-                <div id="lobbyPlayerList" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
-
-                <div id="commonStartArea" class="hidden">
-                    <button onclick="window.startGame()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xl font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2 animate-bounce">
-                        <i data-lucide="play-circle" class="w-6 h-6"></i> GAME START!
-                    </button>
-                    <p class="text-sm text-gray-400 mt-2">Waiting for teacher to start...</p>
-                </div>
-                
-                <div id="waitingMessage" class="text-gray-400 italic">Waiting for teacher to prepare cards...</div>
+            <h2 class="text-3xl font-bold mb-4">Room: <span id="lobbyRoomName" class="text-blue-600"></span></h2>
+            <div id="lobbyPlayerList" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"></div>
+            <div id="commonStartArea" class="hidden">
+                <button onclick="startGame()" class="bg-indigo-600 text-white text-xl font-bold py-4 px-8 rounded shadow animate-bounce">GAME START!</button>
             </div>
+            <div id="waitingMessage" class="text-gray-400 italic">Waiting for teacher...</div>
         </div>
 
-        <div id="sceneGame" class="hidden h-full flex flex-col md:flex-row">
-            <div class="w-full md:w-64 bg-white border-r p-4 flex flex-row md:flex-col gap-4 overflow-x-auto shadow-sm z-20">
-                <div class="shrink-0">
+        <div id="sceneGame" class="hidden h-full flex flex-col md:flex-row bg-slate-100">
+             <div class="w-full md:w-64 bg-white border-r p-4">
+                <div class="mb-4">
                     <div class="text-xs font-bold text-gray-400 uppercase">Turn</div>
-                    <div id="gameTurnIndicator" class="text-xl font-bold text-blue-600 truncate p-2 rounded bg-blue-50">--</div>
+                    <div id="gameTurnIndicator" class="text-xl font-bold text-blue-600 p-2 bg-blue-50 rounded">--</div>
                 </div>
-                <div class="flex-1">
-                    <div class="text-xs font-bold text-gray-400 uppercase mb-2">Scores</div>
-                    <div id="gameScoreBoard" class="grid grid-cols-2 md:grid-cols-1 gap-2"></div>
-                </div>
-            </div>
-            <div class="flex-1 bg-slate-100 p-4 overflow-y-auto">
+                <div id="gameScoreBoard" class="space-y-2"></div>
+                <button onclick="switchScene('admin')" id="backToAdminBtn" class="hidden w-full mt-8 bg-gray-200 text-gray-700 py-2 rounded">Back to Admin</button>
+             </div>
+             <div class="flex-1 p-4 overflow-y-auto">
                 <div id="gameGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4 max-w-7xl mx-auto pb-20"></div>
-            </div>
+             </div>
         </div>
     </main>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        
+    <script>
+        // --- LOGGING ---
+        function log(msg) {
+            const el = document.getElementById('debugLog');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML += `<div>[${time}] ${msg}</div>`;
+            el.scrollTop = el.scrollHeight;
+            console.log(msg);
+        }
+        window.onerror = function(msg) { log("ERROR: " + msg); };
+
+        // --- CONFIG ---
         const firebaseConfig = {
           apiKey: "AIzaSyBE5uUhcvyGU_t6dOuMbUeZYpDB813uPhs",
           authDomain: "concentration-2cb8a.firebaseapp.com",
@@ -187,423 +131,268 @@
           measurementId: "G-D3GC22P1P5"
         };
 
-        // --- GLOBAL VARIABLES ---
-        let app, db;
-        let currentRoomId = "";
-        let myName = "";
-        let myPlayerId = "";
-        let isHostMode = false; 
-        let localState = null;
-
-        // --- INIT ---
+        // --- INITIALIZE FIREBASE (CLASSIC) ---
+        let db;
         try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            console.log("Firebase initialized");
-        } catch (e) {
-            alert("Firebase Error: " + e.message);
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            log("Firebase Initialized (Compat Mode)");
+            document.getElementById('connectionStatus').textContent = "Ready";
+        } catch(e) {
+            log("INIT ERROR: " + e.message);
         }
 
-        // Persist User ID
-        const storedId = localStorage.getItem('nico_player_id');
-        if (storedId) {
-            myPlayerId = storedId;
-        } else {
-            myPlayerId = "user_" + Math.random().toString(36).substr(2, 9);
-            localStorage.setItem('nico_player_id', myPlayerId);
+        // --- STATE ---
+        let myName = "", myRoom = "", myId = "", isHost = false, localData = null;
+        
+        // Persistent ID
+        if(localStorage.getItem('pid')) myId = localStorage.getItem('pid');
+        else { myId = "u_" + Date.now(); localStorage.setItem('pid', myId); }
+
+        // --- SCENE MGR ---
+        function switchScene(name) {
+            ['sceneSetup','sceneAdmin','sceneLobby','sceneGame'].forEach(id => document.getElementById(id).classList.add('hidden'));
+            document.getElementById('scene'+name.charAt(0).toUpperCase() + name.slice(1)).classList.remove('hidden');
+            
+            // UI Updates based on scene
+            if(name === 'admin' && localData) renderAdmin(localData);
         }
 
-        const scenes = {
-            setup: document.getElementById('sceneSetup'),
-            admin: document.getElementById('sceneAdmin'),
-            lobby: document.getElementById('sceneLobby'),
-            game: document.getElementById('sceneGame')
-        };
-        const defaultWords = `I want to visit Kyoto.\t私は京都を訪れたいです。
-Can you help me?\t私を手伝ってくれますか？
-This is the book I bought yesterday.\tこれは私が昨日買った本です。
-It is important to study English.\t英語を勉強することは大切です。`;
-
-        // --- FUNCTIONS ATTACHED TO WINDOW ---
-
-        window.switchScene = function(sceneName) {
-            Object.values(scenes).forEach(el => el.classList.add('hidden'));
-            if(scenes[sceneName]) scenes[sceneName].classList.remove('hidden');
-            
-            const statusDiv = document.getElementById('connectionStatus');
-            if(sceneName === 'setup') {
-                statusDiv.textContent = 'Offline';
-                statusDiv.className = 'text-xs px-2 py-1 rounded bg-gray-100 text-gray-500';
-            } else {
-                statusDiv.textContent = 'Online';
-                statusDiv.className = 'text-xs px-2 py-1 rounded bg-green-100 text-green-600 font-bold animate-pulse';
-            }
-            
-            // If going to Admin, update list immediately if we have data
-            if (sceneName === 'admin' && localState) {
-                renderAdminList(localState);
-            }
-        };
-
-        window.startApp = async () => {
-            const btn = document.getElementById('enterBtn');
-            btn.textContent = "Connecting...";
-            btn.disabled = true;
-
+        // --- ACTIONS ---
+        function startApp() {
             myName = document.getElementById('playerName').value.trim();
-            currentRoomId = document.getElementById('roomName').value.trim();
-            isHostMode = document.getElementById('isTeacherMode').checked; 
+            myRoom = document.getElementById('roomName').value.trim();
+            isHost = document.getElementById('isTeacherMode').checked;
 
-            if (!myName || !currentRoomId) { 
-                alert("Please enter Name and Room ID."); 
-                btn.textContent = "Enter Room";
-                btn.disabled = false;
-                return; 
-            }
+            if(!myName || !myRoom) { alert("Please enter Name and Room."); return; }
+            
+            localStorage.setItem('pname', myName);
+            localStorage.setItem('proom', myRoom);
+            
+            log(`Joining ${myRoom} as ${myName} (Host:${isHost})`);
+            joinRoom();
+        }
 
-            try {
-                localStorage.setItem('nico_concentration_name', myName);
-                localStorage.setItem('nico_concentration_room', currentRoomId);
-                await joinRoomLogic();
-            } catch (e) {
-                console.error(e);
-                showError("Join Error: " + e.message);
-                btn.textContent = "Enter Room";
-                btn.disabled = false;
-            }
-        };
+        function joinRoom() {
+            const docRef = db.collection('rooms').doc(myRoom);
+            
+            docRef.get().then((doc) => {
+                const me = { id: myId, name: myName, score: 0, isSpectator: isHost };
 
-        window.forceResetRoom = async () => {
-            if (!confirm("⚠️ RESET ROOM (FORCE)?\n\nThis will KICK ALL players and reset everything.")) return;
-            try {
-                const roomRef = doc(db, "rooms", currentRoomId);
-                const me = { id: myPlayerId, name: myName, score: 0, isSpectator: true };
-                await setDoc(roomRef, {
-                    status: 'lobby',
-                    players: [me], 
-                    hostId: myPlayerId,
-                    cards: [],
-                    setupComplete: false,
-                    turnIndex: 0,
-                    flippedIndices: [],
-                    lastUpdated: Date.now()
-                });
-                alert("Room Reset!");
-                if(isHostMode) window.switchScene('admin'); 
-            } catch(e) {
-                showError("Reset Error: " + e.message);
-            }
-        };
-
-        window.saveGameSettings = async () => {
-            try {
-                const rawText = document.getElementById('gameWordsInput').value.trim();
-                const lines = rawText.split('\n');
-                let cards = [];
-                let pairId = 0;
-                lines.forEach((line) => {
-                    let parts = line.split('\t');
-                    if (parts.length < 2 && line.includes(',')) {
-                         const commaIndex = line.indexOf(',');
-                         if (commaIndex !== -1) parts = [line.substring(0, commaIndex), line.substring(commaIndex + 1)];
-                    }
-                    if (parts.length >= 2) {
-                        const en = parts[0].trim();
-                        const jp = parts[1].trim();
-                        if (en && jp) {
-                            cards.push({ id: 0, pairId: pairId, text: en, type: 'en', isFlipped: false, isMatched: false });
-                            cards.push({ id: 0, pairId: pairId, text: jp, type: 'jp', isFlipped: false, isMatched: false });
-                            pairId++;
+                if(!doc.exists) {
+                    // Create Room
+                    docRef.set({
+                        status: 'lobby',
+                        players: [me],
+                        hostId: isHost ? myId : null,
+                        cards: [],
+                        setupComplete: false,
+                        turnIndex: 0,
+                        flipped: []
+                    }).then(() => log("Room Created"));
+                } else {
+                    // Join Room
+                    const data = doc.data();
+                    let update = {};
+                    
+                    // Host takeover
+                    if(isHost && data.hostId !== myId) update.hostId = myId;
+                    
+                    // Add/Update Player
+                    const pExists = data.players.find(p => p.id === myId);
+                    if(pExists) {
+                        // Update name if changed
+                        if(pExists.name !== myName) {
+                            const newP = data.players.map(p => p.id === myId ? {...p, name: myName} : p);
+                            update.players = newP;
                         }
+                    } else {
+                        update.players = firebase.firestore.FieldValue.arrayUnion(me);
                     }
-                });
-                if (cards.length < 4) { alert("Need at least 2 pairs."); return; }
-                for (let i = cards.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [cards[i], cards[j]] = [cards[j], cards[i]];
+
+                    if(Object.keys(update).length > 0) docRef.update(update);
                 }
-                cards.forEach((c, i) => c.id = i);
 
-                const roomRef = doc(db, "rooms", currentRoomId);
-                const hostParticipates = document.getElementById('hostParticipates').checked;
-                
-                const snap = await getDoc(roomRef);
-                const currentPlayers = snap.exists() ? snap.data().players : [];
-                const updatedPlayers = currentPlayers.map(p => {
-                    if (p.id === myPlayerId) return { ...p, isSpectator: !hostParticipates };
-                    return p;
-                });
-
-                await updateDoc(roomRef, {
-                    cards: cards,
-                    setupComplete: true,
-                    players: updatedPlayers
-                });
-                alert("Cards Updated! Students can now start.");
-
-            } catch(e) {
-                showError("Save Error: " + e.message);
-            }
-        };
-
-        window.goToGameView = () => {
-            window.switchScene('game');
-        };
-
-        window.startGame = async () => {
-            try {
-                const roomRef = doc(db, "rooms", currentRoomId);
-                let firstTurn = 0;
-                const players = localState.players;
-                while(firstTurn < players.length && players[firstTurn].isSpectator) {
-                    firstTurn++;
-                }
-                await updateDoc(roomRef, {
-                    status: 'playing',
-                    turnIndex: firstTurn,
-                    flippedIndices: []
-                });
-            } catch(e) {
-                showError("Start Error: " + e.message);
-            }
-        }
-
-        window.handleCardClick = async (idx) => {
-            if (!localState) return;
-            const data = localState;
-            const currentPlayer = data.players[data.turnIndex];
-            if (currentPlayer.id !== myPlayerId) return; 
-            if (data.flippedIndices.length >= 2) return; 
-            if (data.cards[idx].isFlipped || data.cards[idx].isMatched) return; 
-            try {
-                const roomRef = doc(db, "rooms", currentRoomId);
-                const newCards = [...data.cards];
-                newCards[idx].isFlipped = true;
-                const newFlipped = [...data.flippedIndices, idx];
-                await updateDoc(roomRef, { cards: newCards, flippedIndices: newFlipped });
-                if (newFlipped.length === 2) {
-                    setTimeout(async () => {
-                        await processMatch(roomRef, newCards, newFlipped, data);
-                    }, 1500); 
-                }
-            } catch(e) { console.error(e); }
-        };
-
-        // --- LOGIC ---
-        async function joinRoomLogic() {
-            const roomRef = doc(db, "rooms", currentRoomId);
-            const snap = await getDoc(roomRef);
-            
-            const playerData = { id: myPlayerId, name: myName, score: 0, isSpectator: isHostMode };
-
-            if (!snap.exists()) {
-                await setDoc(roomRef, {
-                    status: 'lobby',
-                    players: [playerData],
-                    hostId: isHostMode ? myPlayerId : null, 
-                    cards: [],
-                    setupComplete: false,
-                    turnIndex: 0,
-                    flippedIndices: [],
-                    lastUpdated: Date.now()
-                });
-            } else {
-                const data = snap.data();
-                const existing = data.players.find(p => p.id === myPlayerId); 
-                let updatePayload = {};
-
-                if (isHostMode && data.hostId !== myPlayerId) updatePayload.hostId = myPlayerId;
-
-                if (existing) {
-                    if (existing.name !== myName) {
-                        const newPlayers = data.players.map(p => p.id === myPlayerId ? {...p, name: myName} : p);
-                        updatePayload.players = newPlayers;
-                    }
+                // Initial Scene
+                if(isHost) {
+                    switchScene('admin');
+                    document.getElementById('adminResetBtn').classList.remove('hidden');
+                    document.getElementById('backToAdminBtn').classList.remove('hidden');
                 } else {
-                    updatePayload.players = arrayUnion(playerData);
+                    switchScene('lobby');
                 }
-                if (Object.keys(updatePayload).length > 0) await updateDoc(roomRef, updatePayload);
-            }
+                document.getElementById('lobbyRoomName').textContent = myRoom;
+                document.getElementById('adminRoomName').textContent = myRoom;
 
-            // ★ INITIAL SCENE DECISION ★
-            if (isHostMode) {
-                window.switchScene('admin');
-                document.getElementById('adminRoomName').textContent = currentRoomId;
-            } else {
-                window.switchScene('lobby');
-                document.getElementById('lobbyRoomName').textContent = currentRoomId;
-            }
+                // Listen
+                docRef.onSnapshot((snap) => {
+                    if(!snap.exists) { alert("Room Reset."); location.reload(); return; }
+                    const d = snap.data();
+                    localData = d;
+                    
+                    // Ensure I exist
+                    if(!d.players.find(p => p.id === myId)) {
+                         alert("Disconnected."); location.reload(); return; 
+                    }
 
-            const hostNav = document.getElementById('hostNavControls');
-            if (isHostMode) hostNav.classList.remove('hidden');
-            else hostNav.classList.add('hidden');
+                    // Render
+                    if(isHost) renderAdmin(d);
+                    renderLobby(d);
+                    renderGame(d);
 
-            onSnapshot(roomRef, (docSnap) => {
-                if (!docSnap.exists()) { alert("Room reset."); location.reload(); return; }
-                const data = docSnap.data();
-                
-                const me = data.players.find(p => p.id === myPlayerId);
-                if (!me) { alert("Disconnected."); location.reload(); return; }
-
-                localState = data;
-
-                // Update List in Admin Panel
-                if (isHostMode && !scenes.admin.classList.contains('hidden')) {
-                     renderAdminList(data);
-                }
-                
-                // Update Game/Lobby views
-                if (!scenes.game.classList.contains('hidden')) renderGame(data);
-                if (!scenes.lobby.classList.contains('hidden')) renderLobby(data);
-
-                // Auto-switch for students (Teacher stays where they are unless they click)
-                if (!isHostMode) {
-                    if (data.status === 'playing') window.switchScene('game');
-                    else window.switchScene('lobby');
-                }
-            }, (error) => { showError("Sync Error: " + error.message); });
+                    // Auto-nav for students
+                    if(!isHost) {
+                        if(d.status === 'playing') switchScene('game');
+                        else switchScene('lobby');
+                    }
+                    
+                    document.getElementById('connectionStatus').textContent = "Online";
+                });
+            }).catch(e => log("JOIN ERROR: " + e.message));
         }
 
-        async function processMatch(roomRef, currentCards, flippedIndices, data) {
-            const idx1 = flippedIndices[0];
-            const idx2 = flippedIndices[1];
-            const card1 = currentCards[idx1];
-            const card2 = currentCards[idx2];
-            let updates = {};
-            if (card1.pairId === card2.pairId) {
-                currentCards[idx1].isMatched = true;
-                currentCards[idx2].isMatched = true;
-                const newPlayers = [...data.players];
-                newPlayers[data.turnIndex].score = (newPlayers[data.turnIndex].score || 0) + 1;
-                updates = { cards: currentCards, players: newPlayers, flippedIndices: [] };
-            } else {
-                currentCards[idx1].isFlipped = false;
-                currentCards[idx2].isFlipped = false;
-                let nextTurn = (data.turnIndex + 1) % data.players.length;
-                let loopCount = 0;
-                while(data.players[nextTurn].isSpectator && loopCount < data.players.length) {
-                    nextTurn = (nextTurn + 1) % data.players.length;
-                    loopCount++;
-                }
-                updates = { cards: currentCards, turnIndex: nextTurn, flippedIndices: [] };
-            }
-            await updateDoc(roomRef, updates);
+        function forceResetRoom() {
+            if(!confirm("Reset Room? (Kicks all)")) return;
+            const me = { id: myId, name: myName, score: 0, isSpectator: true };
+            db.collection('rooms').doc(myRoom).set({
+                status: 'lobby', players: [me], hostId: myId,
+                cards: [], setupComplete: false, turnIndex: 0, flipped: []
+            }).then(() => {
+                log("Reset Done");
+                if(isHost) switchScene('admin');
+            });
         }
 
-        function renderAdminList(data) {
+        function saveGameSettings() {
+            const txt = document.getElementById('gameWordsInput').value;
+            const part = document.getElementById('hostParticipates').checked;
+            
+            // Parse Cards
+            let cards = [];
+            let pid = 0;
+            txt.trim().split('\n').forEach(line => {
+                let [en, jp] = line.split('\t');
+                if(!jp && line.includes(',')) [en, jp] = line.split(',');
+                if(en && jp) {
+                    cards.push({id:0, pairId:pid, text:en.trim(), type:'en', isFlipped:false, isMatched:false});
+                    cards.push({id:0, pairId:pid, text:jp.trim(), type:'jp', isFlipped:false, isMatched:false});
+                    pid++;
+                }
+            });
+            if(cards.length < 4) { alert("Need 2+ pairs"); return; }
+            
+            // Shuffle
+            for(let i=cards.length-1; i>0; i--) {
+                const j = Math.floor(Math.random()*(i+1));
+                [cards[i], cards[j]] = [cards[j], cards[i]];
+            }
+            cards.forEach((c,i) => c.id=i);
+
+            // Update
+            const newP = localData.players.map(p => p.id === myId ? {...p, isSpectator: !part} : p);
+            
+            db.collection('rooms').doc(myRoom).update({
+                cards: cards, setupComplete: true, players: newP
+            }).then(() => alert("Ready!"));
+        }
+
+        function startGame() {
+            let first = 0;
+            while(localData.players[first].isSpectator && first < localData.players.length) first++;
+            db.collection('rooms').doc(myRoom).update({
+                status: 'playing', turnIndex: first, flipped: []
+            });
+        }
+
+        function handleCardClick(idx) {
+            if(!localData) return;
+            const p = localData.players[localData.turnIndex];
+            if(p.id !== myId) return;
+            if(localData.flipped.length >= 2) return;
+            if(localData.cards[idx].isFlipped || localData.cards[idx].isMatched) return;
+
+            const newCards = [...localData.cards];
+            newCards[idx].isFlipped = true;
+            const newFlipped = [...localData.flipped, idx];
+
+            db.collection('rooms').doc(myRoom).update({
+                cards: newCards, flipped: newFlipped
+            });
+
+            if(newFlipped.length === 2) {
+                setTimeout(() => checkMatch(newCards, newFlipped), 1500);
+            }
+        }
+
+        function checkMatch(cards, flipped) {
+            const c1 = cards[flipped[0]];
+            const c2 = cards[flipped[1]];
+            let up = {};
+
+            if(c1.pairId === c2.pairId) {
+                cards[flipped[0]].isMatched = true;
+                cards[flipped[1]].isMatched = true;
+                const ps = [...localData.players];
+                ps[localData.turnIndex].score++;
+                up = { cards: cards, players: ps, flipped: [] };
+            } else {
+                cards[flipped[0]].isFlipped = false;
+                cards[flipped[1]].isFlipped = false;
+                let next = (localData.turnIndex + 1) % localData.players.length;
+                let loop = 0;
+                while(localData.players[next].isSpectator && loop < localData.players.length) {
+                    next = (next + 1) % localData.players.length; loop++;
+                }
+                up = { cards: cards, turnIndex: next, flipped: [] };
+            }
+            db.collection('rooms').doc(myRoom).update(up);
+        }
+
+        // --- RENDERERS ---
+        function renderAdmin(d) {
             const list = document.getElementById('adminPlayerList');
-            list.innerHTML = '';
-            if(!data.players.length) list.innerHTML = '<p class="text-gray-400 text-xs text-center py-4">No players.</p>';
-            
-            data.players.forEach(p => {
-                if (p.id === myPlayerId) return; 
-                
-                const div = document.createElement('div');
-                div.className = "flex justify-between items-center bg-white p-3 rounded shadow-sm";
-                div.innerHTML = `
-                    <div class="flex items-center gap-2">
-                         <div class="bg-blue-100 p-1 rounded-full"><i data-lucide="${p.isSpectator ? 'eye' : 'user'}" class="w-4 h-4 text-blue-600"></i></div>
-                         <span class="text-sm font-bold text-gray-700">${p.name}</span>
-                    </div>
-                    <span class="text-xs text-gray-400">${p.score} pts</span>
-                `;
-                list.appendChild(div);
-            });
-            if (typeof lucide !== 'undefined') lucide.createIcons();
+            list.innerHTML = d.players.map(p => 
+                `<div class="flex justify-between p-2 border-b"><span>${p.name} ${p.isSpectator?'(Spec)':''}</span><span>${p.score}pt</span></div>`
+            ).join('');
         }
-
-        function renderLobby(data) {
-            const list = document.getElementById('lobbyPlayerList');
-            list.innerHTML = '';
-            data.players.forEach(p => {
-                const isHostUser = p.id === data.hostId;
-                const isSpectator = p.isSpectator;
-                const div = document.createElement('div');
-                div.className = "bg-gray-100 p-4 rounded-lg flex flex-col items-center justify-center relative";
-                div.innerHTML = `
-                    <div class="bg-white p-3 rounded-full mb-2 shadow-sm relative">
-                        <i data-lucide="${isSpectator ? 'eye' : 'user'}" class="w-6 h-6 ${isSpectator ? 'text-gray-400' : 'text-blue-500'}"></i>
-                    </div>
-                    <span class="font-bold text-gray-700 truncate w-full text-center">${p.name}</span>
-                    ${isHostUser ? '<span class="text-xs text-yellow-600 font-bold mt-1">HOST</span>' : ''}
-                    ${isSpectator ? '<span class="text-xs text-gray-500 mt-1">(Spectator)</span>' : ''}
-                `;
-                list.appendChild(div);
-            });
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-
-            const setupComplete = data.setupComplete === true;
-            const commonStart = document.getElementById('commonStartArea');
-            const waitMsg = document.getElementById('waitingMessage');
-
-            if (setupComplete) {
-                commonStart.classList.remove('hidden');
-                waitMsg.classList.add('hidden');
+        function renderLobby(d) {
+            document.getElementById('lobbyPlayerList').innerHTML = d.players.map(p => 
+                `<div class="bg-gray-100 p-2 rounded text-center">${p.name}</div>`
+            ).join('');
+            if(d.setupComplete) {
+                document.getElementById('commonStartArea').classList.remove('hidden');
+                document.getElementById('waitingMessage').classList.add('hidden');
             } else {
-                commonStart.classList.add('hidden');
-                waitMsg.classList.remove('hidden');
+                document.getElementById('commonStartArea').classList.add('hidden');
+                document.getElementById('waitingMessage').classList.remove('hidden');
             }
         }
-
-        function renderGame(data) {
-            const currentPlayer = data.players[data.turnIndex];
-            const indicator = document.getElementById('gameTurnIndicator');
-            if(currentPlayer) {
-                indicator.textContent = currentPlayer.name;
-                const isMyTurn = currentPlayer.id === myPlayerId;
-                if (isMyTurn) {
-                    indicator.classList.add('bg-green-100', 'text-green-700', 'my-turn-alert');
-                    indicator.textContent += " (YOU!)";
-                } else {
-                    indicator.classList.remove('bg-green-100', 'text-green-700', 'my-turn-alert');
-                }
+        function renderGame(d) {
+            const p = d.players[d.turnIndex];
+            if(p) {
+                const ind = document.getElementById('gameTurnIndicator');
+                ind.textContent = p.name + (p.id===myId ? " (YOU)" : "");
+                ind.className = (p.id===myId) ? "text-xl font-bold p-2 rounded bg-green-100 text-green-700 border-2 border-red-500" : "text-xl font-bold p-2 rounded bg-blue-50 text-blue-600";
             }
-            const sb = document.getElementById('gameScoreBoard');
-            sb.innerHTML = '';
-            data.players.forEach((p, idx) => {
-                if (p.isSpectator) return; 
-                const div = document.createElement('div');
-                div.className = `p-3 rounded-lg border flex justify-between items-center ${idx === data.turnIndex ? 'active-player' : 'bg-white'}`;
-                div.innerHTML = `<span class="text-sm font-bold truncate">${p.name}</span><span class="text-xl font-bold">${p.score || 0}</span>`;
-                sb.appendChild(div);
-            });
-            const grid = document.getElementById('gameGrid');
-            grid.innerHTML = '';
-            data.cards.forEach((card, idx) => {
-                const container = document.createElement('div');
-                container.className = `card-container ${card.isFlipped ? 'flipped' : ''} ${card.isMatched ? 'matched-visible' : ''}`;
-                container.onclick = () => window.handleCardClick(idx); 
-                const inner = document.createElement('div');
-                inner.className = 'card-inner bg-white';
-                const front = document.createElement('div');
-                front.className = 'card-front';
-                front.innerHTML = `<span class="font-bold opacity-80">${idx + 1}</span>`;
-                const back = document.createElement('div');
-                back.className = 'card-back';
-                back.innerHTML = `<span class="card-text text-center">${card.text}</span>`;
-                inner.appendChild(front);
-                inner.appendChild(back);
-                container.appendChild(inner);
-                grid.appendChild(container);
-            });
+            document.getElementById('gameScoreBoard').innerHTML = d.players.map((pp,i) => 
+                !pp.isSpectator ? `<div class="flex justify-between p-2 ${i===d.turnIndex?'bg-blue-100':''}"><span>${pp.name}</span><span>${pp.score}</span></div>` : ''
+            ).join('');
+            
+            document.getElementById('gameGrid').innerHTML = d.cards.map((c,i) => `
+                <div class="card-container ${c.isFlipped?'flipped':''} ${c.isMatched?'matched-visible':''}" onclick="handleCardClick(${i})">
+                    <div class="card-inner bg-white">
+                        <div class="card-front text-2xl font-bold text-white">${i+1}</div>
+                        <div class="card-back flex items-center justify-center p-2 text-center text-sm font-bold">${c.text}</div>
+                    </div>
+                </div>
+            `).join('');
         }
 
-        function showError(msg) {
-            const banner = document.getElementById('errorBanner');
-            const text = document.getElementById('errorText');
-            text.textContent = msg;
-            banner.classList.remove('hidden');
-            setTimeout(() => banner.classList.add('hidden'), 5000);
-        }
-
-        window.onload = () => {
-            const savedName = localStorage.getItem('nico_concentration_name');
-            const savedRoom = localStorage.getItem('nico_concentration_room');
-            if (savedName) document.getElementById('playerName').value = savedName;
-            if (savedRoom) document.getElementById('roomName').value = savedRoom;
-            document.getElementById('gameWordsInput').value = defaultWords;
-            if (typeof lucide !== 'undefined') lucide.createIcons();
-        }
+        // Defaults
+        document.getElementById('gameWordsInput').value = defaultWords;
+        if(localStorage.getItem('pname')) document.getElementById('playerName').value = localStorage.getItem('pname');
+        if(localStorage.getItem('proom')) document.getElementById('roomName').value = localStorage.getItem('proom');
+        lucide.createIcons();
     </script>
 </body>
 </html>
