@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Concentration (Admin)</title>
+    <title>Concentration Online (Perfect Shuffle)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -20,29 +20,29 @@
         .front { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; font-size: 1.5rem; }
         .back { background: white; color: #1f2937; transform: rotateY(180deg); border-color: #2563eb; }
         .card.matched .back { background-color: #dcfce7; border-color: #22c55e; }
-        .active-turn { border: 3px solid #f59e0b; background-color: #fffbeb; transform: scale(1.05); }
+        .active-turn { border: 3px solid #f59e0b; background-color: #fffbeb; transform: scale(1.05); transition: all 0.3s ease; }
     </style>
 </head>
 <body class="h-screen flex flex-col">
 
     <div id="startScreen" class="fixed inset-0 bg-gray-100 flex items-center justify-center z-40">
         
-        <button onclick="openSettings()" class="absolute top-4 right-4 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded shadow flex items-center gap-2 font-bold">
+        <button onclick="openSettings()" class="absolute top-4 right-4 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded shadow flex items-center gap-2 font-bold transition">
             <i data-lucide="settings" class="w-4 h-4"></i> カード設定
         </button>
 
         <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm text-center space-y-4">
             <h1 class="text-2xl font-bold text-blue-600">神経衰弱 ONLINE</h1>
-            <input type="text" id="inputName" class="w-full border-2 border-gray-200 p-3 rounded-lg focus:border-blue-500 outline-none" placeholder="名前 (例: タロウ)">
-            <input type="text" id="inputRoom" class="w-full border-2 border-gray-200 p-3 rounded-lg focus:border-blue-500 outline-none" placeholder="ルームID (例: 1-1)">
-            <button onclick="enterRoom()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow transition">
+            <input type="text" id="inputName" class="w-full border-2 border-gray-200 p-3 rounded-lg focus:border-blue-500 outline-none transition" placeholder="名前 (例: タロウ)">
+            <input type="text" id="inputRoom" class="w-full border-2 border-gray-200 p-3 rounded-lg focus:border-blue-500 outline-none transition" placeholder="ルームID (例: 1-1)">
+            <button onclick="enterRoom()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow transition transform hover:scale-105">
                 Enter (対戦ルームへ)
             </button>
         </div>
     </div>
 
     <div id="settingsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white p-6 rounded-lg w-full max-w-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="bg-white p-6 rounded-lg w-full max-w-2xl space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
             <div class="flex justify-between items-center border-b pb-2">
                 <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="settings"></i> 設定・管理</h2>
                 <button onclick="closeSettings()" class="text-gray-500 hover:text-gray-800"><i data-lucide="x"></i></button>
@@ -54,24 +54,24 @@
 
             <div class="grid md:grid-cols-2 gap-4">
                 <div>
-                    <h3 class="font-bold text-gray-700 mb-2">① カードの内容 (英語 [TAB] 日本語)</h3>
-                    <textarea id="wordList" class="w-full h-40 border p-2 font-mono text-sm bg-gray-50 focus:bg-white" placeholder="Apple [TAB] りんご&#10;Dog [TAB] いぬ"></textarea>
-                    <p class="text-xs text-gray-400 mt-1">※変更して保存するとゲームはリセットされます</p>
+                    <h3 class="font-bold text-gray-700 mb-2">① カードの内容 (Excelコピペ対応)</h3>
+                    <textarea id="wordList" class="w-full h-40 border p-2 font-mono text-sm bg-gray-50 focus:bg-white leading-relaxed rounded" placeholder="ExcelのA列とB列をコピーして&#10;ここに貼り付けてください"></textarea>
+                    <p class="text-xs text-gray-400 mt-1">※保存するとゲームはリセットされます</p>
                 </div>
 
                 <div>
                     <h3 class="font-bold text-gray-700 mb-2">② 参加者管理</h3>
-                    <div id="modalPlayerList" class="bg-gray-100 rounded h-40 overflow-y-auto p-2 space-y-2">
+                    <div id="modalPlayerList" class="bg-gray-100 rounded h-40 overflow-y-auto p-2 space-y-2 border">
                         <p class="text-xs text-gray-400 text-center py-4">ルームに入室すると表示されます</p>
                     </div>
                 </div>
             </div>
 
             <div class="flex gap-2 pt-2 border-t mt-2">
-                <button onclick="saveSettings()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded shadow">
+                <button onclick="saveSettings()" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded shadow transition">
                     カードを保存＆リセット
                 </button>
-                <button onclick="closeSettings()" class="px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded">
+                <button onclick="closeSettings()" class="px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded transition">
                     閉じる
                 </button>
             </div>
@@ -79,23 +79,26 @@
     </div>
 
     <div id="gameScreen" class="hidden flex-1 flex flex-col overflow-hidden">
-        <div class="bg-white p-3 shadow-sm flex justify-between items-center z-10">
-            <div class="font-bold text-gray-700 text-sm md:text-base">
+        <div class="bg-white p-3 shadow-sm flex flex-col md:flex-row justify-between items-center z-10 gap-2">
+            <div class="font-bold text-gray-700 text-sm md:text-base flex items-center gap-2">
+                <button onclick="leaveRoom()" class="bg-gray-500 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded shadow flex items-center gap-1 transition">
+                    <i data-lucide="log-out" class="w-3 h-3"></i> 退出
+                </button>
                 Room: <span id="dispRoom" class="text-blue-600"></span>
             </div>
             
             <div class="flex gap-2">
-                <button onclick="restartGame()" class="bg-red-500 hover:bg-red-600 text-white text-xs md:text-sm font-bold px-3 py-2 rounded shadow flex items-center gap-1">
-                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> <span class="hidden md:inline">リスタート</span>
+                <button onclick="restartGame()" class="bg-red-500 hover:bg-red-600 text-white text-xs md:text-sm font-bold px-3 py-2 rounded shadow flex items-center gap-1 transition">
+                    <i data-lucide="shuffle" class="w-4 h-4"></i> <span class="hidden md:inline">リスタート(シャッフル)</span>
                 </button>
-                <button onclick="openSettings()" class="bg-gray-600 hover:bg-gray-700 text-white text-xs md:text-sm font-bold px-3 py-2 rounded shadow flex items-center gap-1">
+                <button onclick="openSettings()" class="bg-gray-600 hover:bg-gray-700 text-white text-xs md:text-sm font-bold px-3 py-2 rounded shadow flex items-center gap-1 transition">
                     <i data-lucide="settings" class="w-4 h-4"></i> <span class="hidden md:inline">設定・管理</span>
                 </button>
             </div>
         </div>
 
         <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
-            <div id="turnInfo" class="text-center mb-4 text-xl font-bold text-gray-600">--</div>
+            <div id="turnInfo" class="text-center mb-4 text-xl font-bold text-gray-600 min-h-[2rem]">--</div>
             
             <div id="gameGrid" class="card-grid mb-8"></div>
             
@@ -126,6 +129,16 @@
         let myName = "";
         let currentRoom = "";
         let localState = null;
+        let unsubscribe = null;
+
+        // --- UTILS: Fisher-Yates Shuffle (確実に混ぜる) ---
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
 
         // --- FUNCTIONS ---
 
@@ -136,7 +149,6 @@
             
             if(!myName || !currentRoom) return alert("名前とルームIDを入力してください");
 
-            // UI Switch
             document.getElementById('startScreen').classList.add('hidden');
             document.getElementById('gameScreen').classList.remove('hidden');
             document.getElementById('dispRoom').textContent = currentRoom;
@@ -165,19 +177,21 @@
                     }
                 });
 
-                roomRef.onSnapshot(snap => {
-                    if(!snap.exists) return alert("ルームがリセットされました");
+                unsubscribe = roomRef.onSnapshot(snap => {
+                    if(!snap.exists) {
+                        alert("ルームが削除されました");
+                        location.reload();
+                        return;
+                    }
                     localState = snap.data();
                     
-                    // Kicked check
                     if(!localState.players.find(p => p.id === myId)) {
-                        alert("退出させられました");
+                        alert("退出しました");
                         location.reload();
                         return;
                     }
 
                     renderGame(localState);
-                    // Update Modal list if open
                     if(!document.getElementById('settingsModal').classList.contains('hidden')) {
                         renderModalPlayers(localState.players);
                     }
@@ -189,9 +203,25 @@
             }
         }
 
-        // 2. Settings Logic
+        // 2. Leave Room
+        async function leaveRoom() {
+            if(!confirm("ルームから退出してスタート画面に戻りますか？")) return;
+            
+            if (currentRoom && localState) {
+                const newPlayers = localState.players.filter(p => p.id !== myId);
+                try {
+                    await db.collection('rooms').doc(currentRoom).update({
+                        players: newPlayers
+                    });
+                } catch(e) {
+                    console.error("退出処理エラー", e);
+                }
+            }
+            location.reload();
+        }
+
+        // 3. Settings & Kick
         function openSettings() {
-            // Determine Room ID (Login input or Current Room)
             const inputVal = document.getElementById('inputRoom').value.trim();
             const targetRoom = currentRoom || inputVal;
             
@@ -200,7 +230,6 @@
             document.getElementById('modalRoomId').textContent = targetRoom;
             document.getElementById('settingsModal').classList.remove('hidden');
 
-            // If we are already in the room and have data, populate players
             if(localState && currentRoom === targetRoom) {
                 renderModalPlayers(localState.players);
             } else {
@@ -217,7 +246,7 @@
             list.innerHTML = players.map(p => `
                 <div class="flex justify-between items-center bg-white p-2 rounded shadow-sm text-sm border">
                     <span class="${p.id === myId ? 'font-bold text-blue-600' : ''}">${p.name} ${p.id === myId ? '(自分)' : ''}</span>
-                    <button onclick="kickPlayer('${p.id}')" class="bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded text-xs font-bold border border-red-200">
+                    <button onclick="kickPlayer('${p.id}')" class="bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded text-xs font-bold border border-red-200 transition">
                         削除
                     </button>
                 </div>
@@ -227,39 +256,41 @@
         async function kickPlayer(targetId) {
             if(!confirm("このプレイヤーを退出させますか？")) return;
             const targetRoom = document.getElementById('modalRoomId').textContent;
-            
-            // Get latest data to avoid overwrites
             const doc = await db.collection('rooms').doc(targetRoom).get();
             if(!doc.exists) return;
-            
             const players = doc.data().players.filter(p => p.id !== targetId);
             await db.collection('rooms').doc(targetRoom).update({ players: players });
         }
 
         async function saveSettings() {
             const targetRoom = document.getElementById('modalRoomId').textContent;
-            const text = document.getElementById('wordList').value.trim();
+            const text = document.getElementById('wordList').value;
             
-            const lines = text.split('\n');
+            const lines = text.trim().split(/\r\n|\n|\r/);
             let cards = [];
             let pid = 0;
 
             lines.forEach(line => {
-                let [a, b] = line.split(/,|\t/);
-                if(a && b) {
-                    cards.push({ id:0, pid:pid, text:a.trim(), matched:false });
-                    cards.push({ id:0, pid:pid, text:b.trim(), matched:false });
-                    pid++;
+                if(line.trim() === '') return;
+                let parts = line.split('\t');
+                if (parts.length < 2 && line.includes(',')) parts = line.split(',');
+
+                if (parts.length >= 2) {
+                    const col1 = parts[0].trim().replace(/^"|"$/g, '');
+                    const col2 = parts[1].trim().replace(/^"|"$/g, '');
+                    if(col1 && col2) {
+                        cards.push({ id:0, pid:pid, text:col1, matched:false, open:false }); // Ensure state is reset
+                        cards.push({ id:0, pid:pid, text:col2, matched:false, open:false });
+                        pid++;
+                    }
                 }
             });
 
             if(cards.length < 4) return alert("ペアが少なすぎます（最低2ペア）");
 
-            // Shuffle
-            cards.sort(() => Math.random() - 0.5);
+            cards = shuffleArray(cards);
             cards.forEach((c, i) => c.id = i);
 
-            // Save & Reset Game
             let updates = {
                 cards: cards,
                 flipped: [],
@@ -267,22 +298,35 @@
                 status: 'playing'
             };
 
-            // If not in room yet, create structure. If in room, preserve players.
             await db.collection('rooms').doc(targetRoom).set(updates, { merge: true });
-
             closeSettings();
             alert("カードを保存し、ゲームをリセットしました");
         }
 
-        // 3. Restart Game
+        // 4. Restart Game (Robust Shuffle)
         async function restartGame() {
-            if(!confirm("現在のゲームをリセットしますか？")) return;
+            if(!confirm("現在のゲームをリセットし、参加者の順番とカードをシャッフルしますか？")) return;
             if(!localState || !localState.cards) return;
 
-            const newPlayers = localState.players.map(p => ({...p, score: 0}));
-            let newCards = [...localState.cards];
-            newCards.forEach(c => c.matched = false);
-            newCards.sort(() => Math.random() - 0.5);
+            // 1. Reset Scores & Shuffle Players (Deep Copy)
+            let newPlayers = localState.players.map(p => ({
+                id: p.id,
+                name: p.name,
+                score: 0
+            }));
+            newPlayers = shuffleArray(newPlayers);
+
+            // 2. Reset Cards & Shuffle Cards (Deep Copy)
+            let newCards = localState.cards.map(c => ({
+                id: 0, 
+                pid: c.pid,
+                text: c.text,
+                matched: false, // Reset status
+                open: false     // Reset status
+            }));
+            newCards = shuffleArray(newCards);
+            
+            // Re-index IDs
             newCards.forEach((c, i) => c.id = i);
 
             await db.collection('rooms').doc(currentRoom).update({
@@ -294,7 +338,7 @@
             });
         }
 
-        // 4. Game Logic
+        // 5. Game Interaction
         async function handleCardClick(idx) {
             if(!localState) return;
             const d = localState;
@@ -336,7 +380,7 @@
             }
         }
 
-        // 5. Render
+        // 6. Rendering
         function renderGame(d) {
             // Turn
             const p = d.players[d.turn];
@@ -368,7 +412,7 @@
             // Players
             const list = document.getElementById('playerList');
             list.innerHTML = d.players.map((pl, i) => `
-                <div class="px-4 py-2 rounded shadow bg-white border-2 flex flex-col items-center min-w-[100px] ${i === d.turn ? 'active-turn border-yellow-400' : 'border-white'}">
+                <div class="px-4 py-2 rounded shadow bg-white border-2 flex flex-col items-center min-w-[100px] transition-all duration-300 ${i === d.turn ? 'active-turn border-yellow-400' : 'border-white'}">
                     <div class="text-sm font-bold text-gray-700 truncate w-full text-center">${pl.name}</div>
                     <div class="text-2xl font-bold text-blue-600">${pl.score}</div>
                 </div>
