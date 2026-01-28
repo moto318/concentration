@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Concentration (Full Text Fix)</title>
+    <title>Concentration (Responsive Grid)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -12,12 +12,15 @@
 
     <style>
         body { font-family: sans-serif; background-color: #f3f4f6; user-select: none; }
-        .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.5rem; max-width: 800px; margin: 0 auto; }
+        
+        /* ▼▼▼ 修正箇所：grid-template-columns を削除し、幅を少し広げました ▼▼▼ */
+        .card-grid { display: grid; gap: 0.5rem; max-width: 1000px; margin: 0 auto; }
+        /* ▲▲▲ 修正箇所ここまで ▲▲▲ */
+
         .card { aspect-ratio: 3/4; cursor: pointer; perspective: 1000px; }
         .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.4s; transform-style: preserve-3d; }
         .card.flipped .card-inner { transform: rotateY(180deg); }
         
-        /* 共通スタイル */
         .front, .back { 
             position: absolute; width: 100%; height: 100%; 
             backface-visibility: hidden; 
@@ -25,38 +28,34 @@
             font-weight: bold; 
         }
 
-        /* 表面（数字側） */
         .front { 
             background: linear-gradient(135deg, #2563eb, #1d4ed8); 
             color: white; font-size: 1.5rem; 
-            display: flex; align-items: center; justify-content: center; /* ど真ん中 */
+            display: flex; align-items: center; justify-content: center;
         }
 
-        /* 裏面（文字・画像側）の修正 */
         .back { 
             background: white; color: #1f2937; 
             transform: rotateY(180deg); border-color: #2563eb; 
-            display: flex; /* Flexboxでレイアウト */
-            overflow-y: auto; /* 文字が多い場合はスクロール許可 */
-            scrollbar-width: none; /* Firefoxスクロールバー非表示 */
+            display: flex; 
+            overflow-y: auto; 
+            scrollbar-width: none; 
         }
-        .back::-webkit-scrollbar { display: none; /* Chrome/Safariスクロールバー非表示 */ }
+        .back::-webkit-scrollbar { display: none; }
 
-        /* コンテンツラッパー（文字の配置制御用） */
         .card-content {
-            margin: auto; /* 上下左右中央揃え（長い場合は上が見切れずスクロール可） */
+            margin: auto; 
             width: 100%;
             padding: 4px;
-            font-size: 0.85rem; /* 少し小さめに調整 */
-            line-height: 1.25;  /* 行間を詰める */
-            word-break: break-word; /* 単語の区切りで改行 */
-            white-space: pre-wrap; /* 改行コードを反映 */
+            font-size: 0.85rem; 
+            line-height: 1.25;  
+            word-break: break-word; 
+            white-space: pre-wrap; 
         }
 
         .card.matched .back { background-color: #dcfce7; border-color: #22c55e; }
         .active-turn { border: 3px solid #f59e0b; background-color: #fffbeb; transform: scale(1.05); transition: all 0.3s ease; }
         
-        /* 画像表示用 */
         .card-img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; display: block; margin: auto; }
     </style>
 </head>
@@ -120,7 +119,8 @@
         </div>
         <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
             <div id="turnInfo" class="text-center mb-4 text-xl font-bold text-gray-600 min-h-[2rem]">--</div>
-            <div id="gameGrid" class="card-grid mb-8"></div>
+            
+            <div id="gameGrid" class="card-grid mb-8 grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8"></div>
             <div class="flex justify-center pb-10"><div id="playerList" class="flex flex-wrap gap-2 justify-center max-w-3xl"></div></div>
         </div>
     </div>
@@ -304,10 +304,8 @@
                         if(match && match[1]) content = `https://lh3.googleusercontent.com/d/${match[1]}`;
                     }
                     if (content.startsWith('http')) {
-                        // 画像の場合はラッパー不要でそのまま表示
                         content = `<img src="${content}" class="card-img" referrerpolicy="no-referrer" onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\\'text-xs text-red-500\\'>画像読込失敗</div>';">`;
                     } else {
-                        // 文字の場合は位置調整用のdivで囲む
                         content = `<div class="card-content">${content}</div>`;
                     }
                     return `<div class="card ${isFlipped ? 'flipped' : ''} ${c.matched ? 'matched' : ''}" onclick="handleCardClick(${i})"><div class="card-inner"><div class="front">${i+1}</div><div class="back">${content}</div></div></div>`;
