@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Concentration Online (Image Fix)</title>
+    <title>Concentration (Manual Next)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -22,7 +22,7 @@
         .card.matched .back { background-color: #dcfce7; border-color: #22c55e; }
         .active-turn { border: 3px solid #f59e0b; background-color: #fffbeb; transform: scale(1.05); transition: all 0.3s ease; }
         
-        /* 画像をカードいっぱいに表示 */
+        /* 画像表示用 */
         .card-img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; display: block; }
     </style>
 </head>
@@ -52,10 +52,6 @@
             <div class="grid md:grid-cols-2 gap-4">
                 <div>
                     <h3 class="font-bold text-gray-700 mb-2">① カードの内容</h3>
-                    <p class="text-xs text-gray-500 mb-1">
-                        Googleドライブの画像URLを貼れます。<br>
-                        <span class="text-red-500 font-bold">※必ず共有設定を「リンクを知っている全員」にしてください！</span>
-                    </p>
                     <textarea id="wordList" class="w-full h-40 border p-2 font-mono text-sm bg-gray-50 focus:bg-white leading-relaxed rounded" placeholder="Apple [TAB] https://drive.google.com/..."></textarea>
                 </div>
                 <div>
@@ -70,7 +66,14 @@
         </div>
     </div>
 
-    <div id="gameScreen" class="hidden flex-1 flex flex-col overflow-hidden">
+    <div id="gameScreen" class="hidden flex-1 flex flex-col overflow-hidden relative">
+        
+        <div id="nextTurnArea" class="hidden absolute inset-0 z-30 bg-black bg-opacity-10 flex items-center justify-center">
+            <button onclick="nextTurn()" class="bg-blue-600 hover:bg-blue-700 text-white text-2xl font-bold py-4 px-12 rounded-full shadow-2xl animate-bounce flex items-center gap-2 border-4 border-white">
+                <i data-lucide="arrow-right-circle" class="w-8 h-8"></i> 残念... 次へ
+            </button>
+        </div>
+
         <div class="bg-white p-3 shadow-sm flex flex-col md:flex-row justify-between items-center z-10 gap-2">
             <div class="font-bold text-gray-700 text-sm md:text-base flex items-center gap-2">
                 <button onclick="leaveRoom()" class="bg-gray-500 hover:bg-gray-600 text-white text-xs px-3 py-1 rounded shadow flex items-center gap-1 transition"><i data-lucide="log-out" class="w-3 h-3"></i> 退出</button>
@@ -215,6 +218,7 @@
             await db.collection('rooms').doc(currentRoom).update({ cards: newCards, players: newPlayers, flipped: [], turn: 0, status: 'playing' });
         }
 
+        // --- GAME LOGIC (Wait for Button Press) ---
         async function handleCardClick(idx) {
             if(!localState || localState.status !== 'playing') return;
             const d = localState;
@@ -224,24 +228,32 @@
             const newFlipped = [...d.flipped, idx];
             await db.collection('rooms').doc(currentRoom).update({ flipped: newFlipped });
 
+            // 2枚めくった時の判定
             if(newFlipped.length === 2) {
-                setTimeout(async () => {
-                    const i1 = newFlipped[0], i2 = newFlipped[1];
-                    const c1 = d.cards[i1], c2 = d.cards[i2];
-                    let updates = {};
-                    if(c1.pid === c2.pid) {
+                const i1 = newFlipped[0], i2 = newFlipped[1];
+                const c1 = d.cards[i1], c2 = d.cards[i2];
+
+                if(c1.pid === c2.pid) {
+                    // 正解の場合：自動処理（少し待ってから）
+                    setTimeout(async () => {
                         let newCards = [...d.cards];
                         newCards[i1].matched = true; newCards[i2].matched = true;
                         let newPlayers = [...d.players];
                         newPlayers[d.turn].score++;
-                        updates = { cards: newCards, players: newPlayers, flipped: [] };
-                    } else {
-                        let nextTurn = (d.turn + 1) % d.players.length;
-                        updates = { flipped: [], turn: nextTurn };
-                    }
-                    await db.collection('rooms').doc(currentRoom).update(updates);
-                }, 1500);
+                        await db.collection('rooms').doc(currentRoom).update({ cards: newCards, players: newPlayers, flipped: [] });
+                    }, 1000);
+                } else {
+                    // 不正解の場合：DBは何もしない（ボタン待ち）
+                    // 画面上では「次へ」ボタンが表示される（renderGameで制御）
+                }
             }
+        }
+
+        // 手動で次へ進む
+        async function nextTurn() {
+            if(!localState) return;
+            let nextTurn = (localState.turn + 1) % localState.players.length;
+            await db.collection('rooms').doc(currentRoom).update({ flipped: [], turn: nextTurn });
         }
 
         function renderGame(d) {
@@ -251,23 +263,21 @@
                 document.getElementById('turnInfo').textContent = isMe ? "あなたの番です" : `${p.name} の番です`;
                 document.getElementById('turnInfo').className = isMe ? "text-center mb-4 text-xl font-bold text-green-600 animate-bounce" : "text-center mb-4 text-xl font-bold text-gray-400";
             }
+            
+            // Grid Rendering
             const grid = document.getElementById('gameGrid');
             if(!d.cards || d.cards.length === 0) {
                 grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">設定ボタンからカードをセットしてください</div>';
             } else {
                 grid.innerHTML = d.cards.map((c, i) => {
                     const isFlipped = d.flipped.includes(i) || c.matched;
-                    // ★ Drive URL Converter (強化版) ★
                     let content = c.text;
                     if(content.includes('drive.google.com')) {
                         const match = content.match(/\/d\/(.+?)(\/|$)/);
-                        if(match && match[1]) {
-                            content = `https://lh3.googleusercontent.com/d/${match[1]}`;
-                        }
+                        if(match && match[1]) content = `https://lh3.googleusercontent.com/d/${match[1]}`;
                     }
                     if (content.startsWith('http')) {
-                        // エラーハンドリングとリファラ対策を追加
-                        content = `<img src="${content}" class="card-img" referrerpolicy="no-referrer" onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\\'text-xs text-red-500\\'>画像読込失敗<br>共有設定を確認</div>';">`;
+                        content = `<img src="${content}" class="card-img" referrerpolicy="no-referrer" onerror="this.onerror=null; this.parentNode.innerHTML='<div class=\\'text-xs text-red-500\\'>画像読込失敗</div>';">`;
                     }
                     return `<div class="card ${isFlipped ? 'flipped' : ''} ${c.matched ? 'matched' : ''}" onclick="handleCardClick(${i})"><div class="card-inner"><div class="front">${i+1}</div><div class="back">${content}</div></div></div>`;
                 }).join('');
@@ -275,6 +285,21 @@
             document.getElementById('playerList').innerHTML = d.players.map((pl, i) => 
                 `<div class="px-4 py-2 rounded shadow bg-white border-2 flex flex-col items-center min-w-[100px] transition-all duration-300 ${i === d.turn ? 'active-turn border-yellow-400' : 'border-white'}"><div class="text-sm font-bold text-gray-700 truncate w-full text-center">${pl.name}</div><div class="text-2xl font-bold text-blue-600">${pl.score}</div></div>`
             ).join('');
+
+            // ★ NEXT TURN BUTTON LOGIC ★
+            const btnArea = document.getElementById('nextTurnArea');
+            if (d.flipped.length === 2) {
+                const c1 = d.cards[d.flipped[0]];
+                const c2 = d.cards[d.flipped[1]];
+                // 不正解かつ、自分の番ならボタン表示
+                if (c1.pid !== c2.pid && p.id === myId) {
+                    btnArea.classList.remove('hidden');
+                } else {
+                    btnArea.classList.add('hidden');
+                }
+            } else {
+                btnArea.classList.add('hidden');
+            }
         }
         document.getElementById('wordList').value = "Apple\thttps://upload.wikimedia.org/wikipedia/commons/1/15/Red_Apple.jpg\nDog\tいぬ\nCat\tねこ\nBook\tほん";
     </script>
