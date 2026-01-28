@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Concentration Online (Auto Turn & Responsive)</title>
+    <title>Concentration Online (Fixed Image)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -13,7 +13,7 @@
     <style>
         body { font-family: sans-serif; background-color: #f3f4f6; user-select: none; }
         
-        /* レスポンシブグリッド: 画面幅に応じて列数を自動調整 */
+        /* レスポンシブグリッド */
         .card-grid { 
             display: grid; 
             grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); 
@@ -22,17 +22,9 @@
             margin: 0 auto; 
             padding-bottom: 4rem;
         }
-        
-        /* スマホ向け調整 */
-        @media (max-width: 640px) {
-            .card-grid { grid-template-columns: repeat(3, 1fr); } /* スマホは3列 */
-        }
-        @media (min-width: 641px) and (max-width: 1024px) {
-            .card-grid { grid-template-columns: repeat(4, 1fr); } /* タブレットは4列 */
-        }
-        @media (min-width: 1025px) {
-            .card-grid { grid-template-columns: repeat(6, 1fr); } /* PCは6列 */
-        }
+        @media (max-width: 640px) { .card-grid { grid-template-columns: repeat(3, 1fr); } }
+        @media (min-width: 641px) and (max-width: 1024px) { .card-grid { grid-template-columns: repeat(4, 1fr); } }
+        @media (min-width: 1025px) { .card-grid { grid-template-columns: repeat(6, 1fr); } }
 
         .card { aspect-ratio: 3/4; cursor: pointer; perspective: 1000px; position: relative; }
         .card-inner { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.4s; transform-style: preserve-3d; }
@@ -43,20 +35,19 @@
             backface-visibility: hidden; display: flex; align-items: center; justify-content: center; 
             border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
             border: 2px solid #e5e7eb; font-weight: bold; 
-            padding: 4px; overflow: hidden; 
+            padding: 4px; overflow: hidden; background: white;
         }
         .front { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; font-size: 1.5rem; }
-        .back { background: white; color: #1f2937; transform: rotateY(180deg); border-color: #2563eb; }
+        .back { color: #1f2937; transform: rotateY(180deg); border-color: #2563eb; }
         
-        /* 文字サイズ自動調整: コンテナサイズに合わせて変動 */
         .card-text {
-            font-size: clamp(0.6rem, 2.5vw, 1.1rem); /* 最小0.6rem, 画面幅連動, 最大1.1rem */
+            font-size: clamp(0.6rem, 2.5vw, 1.1rem);
             line-height: 1.2;
             word-break: break-word;
             width: 100%;
             max-height: 100%;
             display: -webkit-box;
-            -webkit-line-clamp: 4; /* 最大4行まで */
+            -webkit-line-clamp: 4;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
@@ -78,7 +69,7 @@
             <input type="text" id="inputName" class="w-full border-2 border-gray-200 p-3 rounded-lg focus:border-blue-500 outline-none transition" placeholder="名前">
             <input type="text" id="inputRoom" class="w-full border-2 border-gray-200 p-3 rounded-lg focus:border-blue-500 outline-none transition" placeholder="ルームID">
             <button onclick="enterRoom()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg shadow transition transform hover:scale-105">
-                Enter (対戦ルームへ)
+                Enter
             </button>
         </div>
     </div>
@@ -264,10 +255,8 @@
             if(newFlipped.length === 2) {
                 const i1 = newFlipped[0], i2 = newFlipped[1];
                 const c1 = d.cards[i1], c2 = d.cards[i2];
-                let updates = {};
 
                 if(c1.pid === c2.pid) {
-                    // Match: Auto update after 1 sec
                     setTimeout(async () => {
                         let newCards = [...d.cards];
                         newCards[i1].matched = true; newCards[i2].matched = true;
@@ -276,7 +265,7 @@
                         await db.collection('rooms').doc(currentRoom).update({ cards: newCards, players: newPlayers, flipped: [] });
                     }, 1000);
                 } else {
-                    // Mismatch: Auto turn change after 5 sec
+                    // ★ 5秒後に自動で次のターンへ ★
                     setTimeout(async () => {
                         let nextTurn = (d.turn + 1) % d.players.length;
                         await db.collection('rooms').doc(currentRoom).update({ flipped: [], turn: nextTurn });
@@ -298,14 +287,20 @@
             } else {
                 grid.innerHTML = d.cards.map((c, i) => {
                     const isFlipped = d.flipped.includes(i) || c.matched;
+                    // ★ 画像表示ロジック強化版 (どんなDrive URLでもIDを抜く) ★
                     let content = `<div class="card-text">${c.text}</div>`;
                     
-                    if(c.text.includes('drive.google.com') && c.text.includes('/view')) {
-                        const match = c.text.match(/\/d\/(.+?)\//);
-                        if(match) content = `<img src="https://drive.google.com/uc?export=view&id=${match[1]}" class="card-img" referrerpolicy="no-referrer">`;
+                    // Drive URL Pattern: /d/FILE_ID/ or id=FILE_ID
+                    if(c.text.includes('drive.google.com')) {
+                        const idMatch = c.text.match(/\/d\/([a-zA-Z0-9_-]+)/) || c.text.match(/id=([a-zA-Z0-9_-]+)/);
+                        if(idMatch && idMatch[1]) {
+                            // "uc?export=view" is the most reliable method for public files
+                            content = `<img src="https://drive.google.com/uc?export=view&id=${idMatch[1]}" class="card-img" referrerpolicy="no-referrer">`;
+                        }
                     } else if (c.text.startsWith('http')) {
                         content = `<img src="${c.text}" class="card-img" referrerpolicy="no-referrer">`;
                     }
+                    
                     return `<div class="card ${isFlipped ? 'flipped' : ''} ${c.matched ? 'matched' : ''}" onclick="handleCardClick(${i})"><div class="card-inner"><div class="front">${i+1}</div><div class="back">${content}</div></div></div>`;
                 }).join('');
             }
